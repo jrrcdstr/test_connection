@@ -49,9 +49,18 @@
     <div class="card">
       <h2 class="brand" style="font-size:34px;margin:0 0 8px">Kanta Tayo! 🎤</h2>
       <p class="muted">This screen plays the songs. Put it on the TV, then tap start so the browser allows sound.</p>
+      <p class="muted small">💡 Weak Wi-Fi? Connect the TV to a phone hotspot as a backup.</p>
       <label><input type="checkbox" id="useMic"> Use microphone for scoring (optional)</label>
       <button class="btn-yellow" id="startBtn" style="width:100%">▶ Start the party</button>
       <p class="muted small" id="startMsg" style="margin-top:12px"></p>
+    </div>
+  </div>
+
+  <div class="start hidden" id="moved">
+    <div class="card">
+      <h2 style="font-size:28px;margin:0 0 8px">📺 The party moved to another screen</h2>
+      <p class="muted">Someone made another device the TV, so this screen stopped playing. The queue continues there.</p>
+      <button class="btn-yellow" id="takeBackBtn" style="width:100%">Take it back to this screen</button>
     </div>
   </div>
 

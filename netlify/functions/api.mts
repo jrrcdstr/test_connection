@@ -4,7 +4,9 @@ import type { Config, Context } from "@netlify/functions";
 // Data layout in the "videoke" store (one key per thing, so different
 // devices never overwrite each other's writes):
 //   rooms/<CODE>/meta      { code, createdAt, hostToken }   written once
+//   rooms/<CODE>/host      { token, since }                 current TV (changes on takeover)
 //   rooms/<CODE>/now       { item, startedAt }              written by host only
+//   rooms/<CODE>/pos       { id, t, at }                    playback position, written by host
 //   rooms/<CODE>/skip      { at }                           written by remotes
 //   rooms/<CODE>/q/<id>    queue item                       one key per song
 
@@ -23,6 +25,9 @@ type QueueItem = {
 };
 
 type RoomMeta = { code: string; createdAt: number; hostToken: string };
+type HostInfo = { token: string; since: number };
+
+const newToken = () => randomString(24, "abcdefghijklmnopqrstuvwxyz0123456789");
 
 const store = () => getStore({ name: "videoke", consistency: "strong" });
 
@@ -81,6 +86,11 @@ async function getRoom(code: string): Promise<RoomMeta | null> {
   return meta;
 }
 
+async function getHost(room: RoomMeta): Promise<HostInfo> {
+  const host = (await store().get(`rooms/${room.code}/host`, { type: "json" })) as HostInfo | null;
+  return host ?? { token: room.hostToken, since: room.createdAt };
+}
+
 async function listQueue(code: string): Promise<QueueItem[]> {
   const s = store();
   const { blobs } = await s.list({ prefix: `rooms/${code}/q/` });
@@ -90,14 +100,24 @@ async function listQueue(code: string): Promise<QueueItem[]> {
   return items.filter((i): i is QueueItem => i !== null).sort((a, b) => a.order - b.order);
 }
 
-async function roomState(code: string) {
+async function roomState(room: RoomMeta) {
   const s = store();
-  const [queue, now, skip] = await Promise.all([
+  const code = room.code;
+  const [queue, now, skip, pos, host] = await Promise.all([
     listQueue(code),
     s.get(`rooms/${code}/now`, { type: "json" }),
     s.get(`rooms/${code}/skip`, { type: "json" }),
+    s.get(`rooms/${code}/pos`, { type: "json" }),
+    getHost(room),
   ]);
-  return { code, now: now ?? null, skipAt: (skip as { at?: number } | null)?.at ?? 0, queue };
+  return {
+    code,
+    now: now ?? null,
+    pos: pos ?? null,
+    hostSince: host.since,
+    skipAt: (skip as { at?: number } | null)?.at ?? 0,
+    queue,
+  };
 }
 
 async function readBody(req: Request): Promise<Record<string, unknown>> {
@@ -123,10 +143,14 @@ export default async (req: Request, _context: Context) => {
         const meta: RoomMeta = {
           code,
           createdAt: Date.now(),
-          hostToken: randomString(24, "abcdefghijklmnopqrstuvwxyz0123456789"),
+          hostToken: newToken(),
         };
         const { modified } = await s.setJSON(`rooms/${code}/meta`, meta, { onlyIfNew: true });
-        if (modified) return json({ code, hostToken: meta.hostToken }, 201);
+        if (modified) {
+          const host: HostInfo = { token: meta.hostToken, since: meta.createdAt };
+          await s.setJSON(`rooms/${code}/host`, host);
+          return json({ code, hostToken: host.token, hostSince: host.since }, 201);
+        }
       }
       return fail("Couldn't create a room, please try again.", 500);
     }
@@ -138,10 +162,29 @@ export default async (req: Request, _context: Context) => {
     if (!room) return fail("Room not found or expired. Ask the host for the new code.", 410);
 
     const action = parts[2];
-    const isHost = req.headers.get("x-host-token") === room.hostToken;
+    const host = await getHost(room);
+    const isHost = req.headers.get("x-host-token") === host.token;
 
     // GET /api/rooms/:code
-    if (!action && method === "GET") return json(await roomState(code));
+    if (!action && method === "GET") return json(await roomState(room));
+
+    // POST /api/rooms/:code/takeover  (this device becomes the TV; the old TV stops)
+    if (action === "takeover" && method === "POST") {
+      const next: HostInfo = { token: newToken(), since: Date.now() };
+      await s.setJSON(`rooms/${code}/host`, next);
+      return json({ code, hostToken: next.token, hostSince: next.since });
+    }
+
+    // POST /api/rooms/:code/progress { id, t }  (host only: remember playback position)
+    if (action === "progress" && method === "POST") {
+      if (!isHost) return fail("This screen is no longer the TV.", 403);
+      const body = await readBody(req);
+      const id = String(body.id ?? "");
+      const t = Number(body.t);
+      if (!/^[a-z0-9]{1,40}$/.test(id) || !Number.isFinite(t) || t < 0) return fail("Invalid progress");
+      await s.setJSON(`rooms/${code}/pos`, { id, t: Math.floor(t), at: Date.now() });
+      return json({ ok: true });
+    }
 
     // POST /api/rooms/:code/queue  { url, singer }
     if (action === "queue" && !parts[3] && method === "POST") {
@@ -198,7 +241,7 @@ export default async (req: Request, _context: Context) => {
 
     // POST /api/rooms/:code/next   (host only: start the next song)
     if (action === "next" && method === "POST") {
-      if (!isHost) return fail("Only the TV screen can do this.", 403);
+      if (!isHost) return fail("This screen is no longer the TV.", 403);
       const queue = await listQueue(code);
       const next = queue[0] ?? null;
       if (next) {
@@ -207,7 +250,8 @@ export default async (req: Request, _context: Context) => {
       } else {
         await s.delete(`rooms/${code}/now`);
       }
-      return json(await roomState(code));
+      await s.delete(`rooms/${code}/pos`);
+      return json(await roomState(room));
     }
 
     return fail("Not found", 404);

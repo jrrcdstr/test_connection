@@ -135,6 +135,21 @@ $("skipBtn").addEventListener("click", async () => {
   }
 });
 
+$("takeoverBtn").addEventListener("click", async () => {
+  if (!confirm("Make this device the TV? Songs will play here and the current TV will stop.")) return;
+  const btn = $("takeoverBtn");
+  btn.disabled = true;
+  try {
+    const room = await api(`rooms/${code}/takeover`, { method: "POST" });
+    store(`host:${room.code}`, room.hostToken);
+    store(`hostSince:${room.code}`, String(room.hostSince));
+    location.href = `/host.html?room=${room.code}`;
+  } catch (err) {
+    toast(err.message);
+    btn.disabled = false;
+  }
+});
+
 // Refresh right away when the phone comes back from the YouTube app.
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible" && code && !$("app").classList.contains("hidden")) refresh();

@@ -6,11 +6,12 @@ const POLL_MS = 2000;
 
 let code = new URLSearchParams(location.search).get("room")?.toUpperCase() || "";
 let hostToken = code ? store(`host:${code}`) : null;
+let hostSince = code ? Number(store(`hostSince:${code}`)) || 0 : 0;
 
 let player = null;
 let playerReady = false;
 let started = false;
-let phase = "idle"; // idle | playing | scoring | advancing
+let phase = "idle"; // idle | playing | scoring | advancing | replaced
 let currentId = null;
 let currentItem = null;
 let lastSkip = 0;
@@ -18,13 +19,45 @@ let firstPoll = true;
 let audioCtx = null;
 
 // ---------- Room setup ----------
-async function ensureRoom() {
-  if (code && hostToken) return;
-  const room = await api("rooms", { method: "POST" });
+function saveHost(room) {
   code = room.code;
   hostToken = room.hostToken;
+  hostSince = room.hostSince || 0;
   store(`host:${code}`, hostToken);
+  store(`hostSince:${code}`, String(hostSince));
   history.replaceState(null, "", `?room=${code}`);
+}
+
+async function ensureRoom() {
+  if (code && hostToken) return;
+  if (code) {
+    // Opened with a room code but not as its TV: take over that party.
+    try {
+      saveHost(await api(`rooms/${code}/takeover`, { method: "POST" }));
+      return;
+    } catch (err) {
+      if (err.status !== 410 && err.status !== 400) throw err;
+      toast("That party has ended. Starting a new one…", 4000);
+    }
+  }
+  saveHost(await api("rooms", { method: "POST" }));
+}
+
+async function takeBack() {
+  saveHost(await api(`rooms/${code}/takeover`, { method: "POST" }));
+  $("moved").classList.add("hidden");
+  phase = "idle";
+  firstPoll = true; // resume the current song where it stopped
+}
+
+function replaced() {
+  if (phase === "replaced") return;
+  phase = "replaced";
+  clearTimeout(scoreTimer);
+  currentId = null;
+  if (playerReady) player.stopVideo();
+  $("score").classList.add("hidden");
+  $("moved").classList.remove("hidden");
 }
 
 function showJoinInfo() {
@@ -61,7 +94,7 @@ const ytScript = document.createElement("script");
 ytScript.src = "https://www.youtube.com/iframe_api";
 document.head.appendChild(ytScript);
 
-function playItem(item) {
+function playItem(item, startSeconds = 0) {
   currentId = item.id;
   currentItem = item;
   phase = "playing";
@@ -71,14 +104,28 @@ function playItem(item) {
   $("nowSong").textContent = item.title;
   $("nowSong").title = item.title;
   mic.reset();
-  if (playerReady) player.loadVideoById(item.videoId);
+  const load = () => player.loadVideoById({ videoId: item.videoId, startSeconds });
+  if (playerReady) load();
   else {
     // Player not ready yet: retry shortly.
     const t = setInterval(() => {
-      if (playerReady) { clearInterval(t); if (currentId === item.id) player.loadVideoById(item.videoId); }
+      if (playerReady) { clearInterval(t); if (currentId === item.id) load(); }
     }, 300);
   }
+  if (startSeconds > 0) toast(`▶ Continuing from ${Math.floor(startSeconds / 60)}:${String(Math.floor(startSeconds % 60)).padStart(2, "0")}`);
 }
+
+// Save the playback position every 5s so another device can continue the song.
+setInterval(async () => {
+  if (phase !== "playing" || !playerReady || !currentId) return;
+  const t = player.getCurrentTime?.() || 0;
+  if (t < 1) return;
+  try {
+    await api(`rooms/${code}/progress`, { method: "POST", hostToken, body: { id: currentId, t } });
+  } catch (err) {
+    if (err.status === 403) replaced();
+  }
+}, 5000);
 
 function showIdle() {
   phase = "idle";
@@ -100,6 +147,7 @@ async function advance() {
     if (state.now?.item) playItem(state.now.item);
     else showIdle();
   } catch (err) {
+    if (err.status === 403) { replaced(); return; }
     toast(err.message);
     phase = "idle";
   }
@@ -219,10 +267,18 @@ async function poll() {
     const state = await api(`rooms/${code}`);
     render(state);
 
+    if (phase === "replaced") return;
+    if (hostSince && state.hostSince && state.hostSince !== hostSince) { replaced(); return; }
+
     if (firstPoll) {
       firstPoll = false;
       lastSkip = state.skipAt;
-      if (state.now?.item) { playItem(state.now.item); return; }
+      const item = state.now?.item;
+      if (item) {
+        const start = state.pos?.id === item.id ? Math.max(0, state.pos.t - 3) : 0;
+        playItem(item, start);
+        return;
+      }
     }
 
     if (state.skipAt > lastSkip) {
@@ -271,6 +327,18 @@ $("startBtn").addEventListener("click", async () => {
     $("startBtn").disabled = false;
   }
 });
+
+$("takeBackBtn").addEventListener("click", async () => {
+  $("takeBackBtn").disabled = true;
+  try { await takeBack(); }
+  catch (err) { toast(err.message); }
+  finally { $("takeBackBtn").disabled = false; }
+});
+
+if (code) {
+  $("startBtn").textContent = `▶ Continue party ${code} on this screen`;
+  if (!hostToken) $("startMsg").textContent = "This screen will become the TV. The current TV will stop playing.";
+}
 
 $("skipBtn").addEventListener("click", () => {
   if (!started) return;
