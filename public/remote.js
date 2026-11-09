@@ -3,6 +3,90 @@ import { api, store, toast, thumb, renderQueue } from "/common.js";
 const $ = (id) => document.getElementById(id);
 const POLL_MS = 3000;
 let isPaused = false;
+
+// ---------- Optional muted video that follows the TV ----------
+const watch = {
+  on: false,
+  player: null,
+  ready: false,
+  videoId: null,
+  apiLoading: null,
+  loadApi() {
+    if (window.YT?.Player) return Promise.resolve();
+    if (!this.apiLoading) {
+      this.apiLoading = new Promise((resolve) => {
+        window.onYouTubeIframeAPIReady = resolve;
+        const s = document.createElement("script");
+        s.src = "https://www.youtube.com/iframe_api";
+        document.head.appendChild(s);
+      });
+    }
+    return this.apiLoading;
+  },
+  async start() {
+    this.on = true;
+    store("watch", "1");
+    $("phoneVid").classList.remove("hidden");
+    $("watchBtn").textContent = "🙈 Hide video";
+    await this.loadApi();
+    if (!this.player) {
+      this.player = new YT.Player("ytPhone", {
+        width: "100%",
+        height: "100%",
+        playerVars: { autoplay: 1, mute: 1, playsinline: 1, rel: 0, controls: 0, disablekb: 1, modestbranding: 1 },
+        events: {
+          onReady: () => { this.ready = true; this.player.mute(); if (lastState) this.sync(lastState); },
+        },
+      });
+    } else if (lastState) this.sync(lastState);
+  },
+  stop() {
+    this.on = false;
+    store("watch", null);
+    $("phoneVid").classList.add("hidden");
+    $("watchBtn").textContent = "👀 Watch video on my phone (muted)";
+    if (this.ready) this.player.stopVideo();
+    this.videoId = null;
+  },
+  // Where the TV is in the song right now (seconds), estimated from the last report.
+  tvTime(state, receivedAt) {
+    const item = state.now.item;
+    const pos = state.pos && state.pos.id === item.id ? state.pos : null;
+    const sinceResponse = (Date.now() - receivedAt) / 1000;
+    if (pos) {
+      if (state.paused) return pos.t;
+      return pos.t + (state.serverNow - pos.at) / 1000 + sinceResponse;
+    }
+    return Math.max(0, (state.serverNow - state.now.startedAt) / 1000 - 2 + sinceResponse);
+  },
+  sync(state) {
+    if (!this.on || !this.ready) return;
+    const item = state.now?.item;
+    if (!item) {
+      if (this.videoId) { this.player.stopVideo(); this.videoId = null; }
+      return;
+    }
+    const target = this.tvTime(state, state.receivedAt);
+    if (item.videoId !== this.videoId) {
+      this.videoId = item.videoId;
+      this.player.loadVideoById({ videoId: item.videoId, startSeconds: target });
+      this.player.mute();
+      if (state.paused) setTimeout(() => this.player.pauseVideo(), 1200);
+      return;
+    }
+    this.player.mute();
+    const ps = this.player.getPlayerState?.();
+    if (state.paused) {
+      if (ps === YT.PlayerState.PLAYING) this.player.pauseVideo();
+      if (Math.abs((this.player.getCurrentTime?.() || 0) - target) > 1.5) this.player.seekTo(target, true);
+      return;
+    }
+    if (ps === YT.PlayerState.PAUSED || ps === YT.PlayerState.CUED) this.player.playVideo();
+    const drift = Math.abs((this.player.getCurrentTime?.() || 0) - target);
+    if (ps !== YT.PlayerState.BUFFERING && drift > 2.5) this.player.seekTo(target, true);
+  },
+};
+let lastState = null;
 let code = new URLSearchParams(location.search).get("room")?.toUpperCase() || "";
 let pollTimer = null;
 
@@ -36,7 +120,11 @@ function render(state) {
 
 async function refresh() {
   try {
-    render(await api(`rooms/${code}`));
+    const state = await api(`rooms/${code}`);
+    state.receivedAt = Date.now();
+    lastState = state;
+    render(state);
+    watch.sync(state);
     return true;
   } catch (err) {
     if (err.status === 410 || err.status === 400) {
@@ -130,6 +218,11 @@ $("queue").addEventListener("click", async (e) => {
   }
 });
 
+$("watchBtn").addEventListener("click", () => {
+  if (watch.on) watch.stop();
+  else watch.start();
+});
+
 $("pauseBtn").addEventListener("click", async () => {
   const want = !isPaused;
   const btn = $("pauseBtn");
@@ -177,5 +270,5 @@ document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible" && code && !$("app").classList.contains("hidden")) refresh();
 });
 
-if (code) join(code);
+if (code) join(code).then(() => { if (store("watch") === "1" && !$("app").classList.contains("hidden")) watch.start(); });
 else showJoin();

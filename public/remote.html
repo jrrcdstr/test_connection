@@ -25,6 +25,10 @@
     .joinbox { text-align: center; }
     .joinbox input { text-transform: uppercase; letter-spacing: .3em; font-weight: 800; text-align: center; font-size: 22px; }
     .hidden { display: none !important; }
+    .phonevid { position: relative; aspect-ratio: 16 / 9; background: #000; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--line); }
+    .phonevid iframe, .phonevid > div { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .phonevid .note { position: absolute; left: 8px; bottom: 8px; z-index: 2; background: #000b; font-size: 12px; padding: 3px 8px; border-radius: 999px; color: var(--muted); pointer-events: none; }
+    .watchrow { grid-column: 1 / -1; display: flex; justify-content: flex-end; }
   </style>
 </head>
 <body>
@@ -43,12 +47,20 @@
     </section>
 
     <div id="app" class="hidden" style="display:grid;gap:14px">
+      <div class="phonevid hidden" id="phoneVid">
+        <div id="ytPhone"></div>
+        <span class="note">🔇 Muted · follows the TV</span>
+      </div>
+
       <section class="card now" id="nowCard">
         <img id="nowImg" alt="">
         <div style="min-width:0">
           <div class="label">Now singing</div>
           <div class="who" id="nowWho">Nobody yet</div>
           <div class="song" id="nowSong"></div>
+        </div>
+        <div class="watchrow">
+          <button class="btn-ghost btn-small" id="watchBtn">👀 Watch video on my phone (muted)</button>
         </div>
       </section>
 

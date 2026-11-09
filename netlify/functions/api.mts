@@ -119,6 +119,7 @@ async function roomState(room: RoomMeta) {
     hostSince: host.since,
     skipAt: (skip as { at?: number } | null)?.at ?? 0,
     paused: Boolean((pause as { paused?: boolean } | null)?.paused),
+    serverNow: Date.now(),
     queue,
   };
 }
@@ -185,7 +186,7 @@ export default async (req: Request, _context: Context) => {
       const id = String(body.id ?? "");
       const t = Number(body.t);
       if (!/^[a-z0-9]{1,40}$/.test(id) || !Number.isFinite(t) || t < 0) return fail("Invalid progress");
-      await s.setJSON(`rooms/${code}/pos`, { id, t: Math.floor(t), at: Date.now() });
+      await s.setJSON(`rooms/${code}/pos`, { id, t: Math.round(t * 10) / 10, at: Date.now() });
       return json({ ok: true });
     }
 

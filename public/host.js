@@ -103,6 +103,7 @@ function applyPause(want) {
   if (!playerReady || phase !== "playing") return;
   if (want) player.pauseVideo();
   else player.playVideo();
+  setTimeout(saveProgress, 300); // tell watching phones right away
 }
 
 function playItem(item, startSeconds = 0) {
@@ -126,8 +127,9 @@ function playItem(item, startSeconds = 0) {
   if (startSeconds > 0) toast(`▶ Continuing from ${Math.floor(startSeconds / 60)}:${String(Math.floor(startSeconds % 60)).padStart(2, "0")}`);
 }
 
-// Save the playback position every 5s so another device can continue the song.
-setInterval(async () => {
+// Save the playback position every 5s so another device can continue the song
+// and phones watching the video can stay in sync.
+async function saveProgress() {
   if (phase !== "playing" || !playerReady || !currentId) return;
   const t = player.getCurrentTime?.() || 0;
   if (t < 1) return;
@@ -136,7 +138,8 @@ setInterval(async () => {
   } catch (err) {
     if (err.status === 403) replaced();
   }
-}, 5000);
+}
+setInterval(saveProgress, 5000);
 
 function showIdle() {
   phase = "idle";
