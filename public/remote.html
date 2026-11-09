@@ -78,7 +78,10 @@
       <section class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
           <h3 style="margin:0">🎶 Queue <span class="muted small" id="count"></span></h3>
-          <button class="btn-ghost btn-small" id="skipBtn">⏭ Skip current</button>
+          <div style="display:flex;gap:6px">
+            <button class="btn-ghost btn-small" id="pauseBtn">⏸ Pause</button>
+            <button class="btn-ghost btn-small" id="skipBtn">⏭ Skip</button>
+          </div>
         </div>
         <ul class="queue" id="queue"></ul>
       </section>

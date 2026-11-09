@@ -28,6 +28,7 @@
     .score .msg { font-size: clamp(22px, 4vw, 44px); font-weight: 800; }
     .score .sub { color: var(--muted); }
     .hidden { display: none !important; }
+    .paused { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); z-index: 4; background: #000c; border: 1px solid var(--line); color: var(--yellow); font-weight: 800; font-size: clamp(18px, 3vw, 28px); padding: 8px 20px; border-radius: 999px; pointer-events: none; }
     aside { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
     .join { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; }
     .join .qr { background: #fff; padding: 8px; border-radius: 10px; width: 136px; height: 136px; }
@@ -73,6 +74,7 @@
           <div class="song" id="nowSong"></div>
         </div>
         <div class="controls">
+          <button class="btn-ghost btn-small" id="pauseBtn" title="Pause or resume">⏸ Pause</button>
           <button class="btn-ghost btn-small" id="skipBtn" title="Skip this song">⏭ Skip</button>
           <button class="btn-ghost btn-small" id="fsBtn" title="Fullscreen">⛶ Fullscreen</button>
         </div>
@@ -84,6 +86,7 @@
           <div class="muted">Scan the QR code or go to the site and enter</div>
           <div class="code" id="splashCode">····</div>
         </div>
+        <div class="paused hidden" id="pausedBadge">⏸ Paused</div>
         <div class="score hidden" id="score">
           <div class="sub" id="scoreWho"></div>
           <div class="num" id="scoreNum">0</div>

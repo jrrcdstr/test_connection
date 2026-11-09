@@ -2,6 +2,7 @@ import { api, store, toast, thumb, renderQueue } from "/common.js";
 
 const $ = (id) => document.getElementById(id);
 const POLL_MS = 3000;
+let isPaused = false;
 let code = new URLSearchParams(location.search).get("room")?.toUpperCase() || "";
 let pollTimer = null;
 
@@ -26,6 +27,10 @@ function render(state) {
   if (item) $("nowImg").src = thumb(item.videoId);
   else $("nowImg").removeAttribute("src");
   renderQueue($("queue"), state.queue, { actions: true });
+  isPaused = Boolean(state.paused);
+  $("pauseBtn").textContent = isPaused ? "▶ Resume" : "⏸ Pause";
+  $("pauseBtn").disabled = !item;
+  $("nowWho").textContent = item ? `${isPaused ? "⏸ " : "🎤 "}${item.singer}` : "Nobody yet";
   $("count").textContent = state.queue.length ? `(${state.queue.length})` : "";
 }
 
@@ -121,6 +126,23 @@ $("queue").addEventListener("click", async (e) => {
     refresh();
   } catch (err) {
     toast(err.message);
+    btn.disabled = false;
+  }
+});
+
+$("pauseBtn").addEventListener("click", async () => {
+  const want = !isPaused;
+  const btn = $("pauseBtn");
+  btn.disabled = true;
+  try {
+    await api(`rooms/${code}/pause`, { method: "POST", body: { paused: want } });
+    isPaused = want;
+    btn.textContent = want ? "▶ Resume" : "⏸ Pause";
+    toast(want ? "⏸ Pause sent to the TV" : "▶ Resume sent to the TV");
+    refresh();
+  } catch (err) {
+    toast(err.message);
+  } finally {
     btn.disabled = false;
   }
 });

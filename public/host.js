@@ -15,6 +15,8 @@ let phase = "idle"; // idle | playing | scoring | advancing | replaced
 let currentId = null;
 let currentItem = null;
 let lastSkip = 0;
+let paused = false;        // last pause state applied to the player
+let serverPaused = false;  // last pause state seen on the server
 let firstPoll = true;
 let audioCtx = null;
 
@@ -94,6 +96,15 @@ const ytScript = document.createElement("script");
 ytScript.src = "https://www.youtube.com/iframe_api";
 document.head.appendChild(ytScript);
 
+function applyPause(want) {
+  paused = want;
+  $("pausedBadge").classList.toggle("hidden", !want || phase !== "playing");
+  $("pauseBtn").textContent = want ? "▶ Resume" : "⏸ Pause";
+  if (!playerReady || phase !== "playing") return;
+  if (want) player.pauseVideo();
+  else player.playVideo();
+}
+
 function playItem(item, startSeconds = 0) {
   currentId = item.id;
   currentItem = item;
@@ -144,6 +155,8 @@ async function advance() {
   try {
     const state = await api(`rooms/${code}/next`, { method: "POST", hostToken });
     render(state);
+    serverPaused = false;
+    applyPause(false);
     if (state.now?.item) playItem(state.now.item);
     else showIdle();
   } catch (err) {
@@ -170,7 +183,7 @@ const mic = {
     this.timer = setInterval(() => this.sample(), 250);
   },
   sample() {
-    if (phase !== "playing" || !this.analyser) return;
+    if (phase !== "playing" || paused || !this.analyser) return;
     this.analyser.getFloatTimeDomainData(this.data);
     let sum = 0;
     for (const v of this.data) sum += v * v;
@@ -277,7 +290,17 @@ async function poll() {
       if (item) {
         const start = state.pos?.id === item.id ? Math.max(0, state.pos.t - 3) : 0;
         playItem(item, start);
+        serverPaused = state.paused;
+        if (state.paused) setTimeout(() => applyPause(true), 1500); // let the video load first
         return;
+      }
+    }
+
+    if (state.paused !== serverPaused) {
+      serverPaused = state.paused;
+      if (phase === "playing" && state.paused !== paused) {
+        toast(state.paused ? "⏸ Paused from a phone" : "▶ Resumed");
+        applyPause(state.paused);
       }
     }
 
@@ -339,6 +362,15 @@ if (code) {
   $("startBtn").textContent = `▶ Continue party ${code} on this screen`;
   if (!hostToken) $("startMsg").textContent = "This screen will become the TV. The current TV will stop playing.";
 }
+
+$("pauseBtn").addEventListener("click", async () => {
+  if (!started || phase !== "playing") return;
+  const want = !paused;
+  applyPause(want);
+  serverPaused = want;
+  try { await api(`rooms/${code}/pause`, { method: "POST", body: { paused: want } }); }
+  catch (err) { toast(err.message); }
+});
 
 $("skipBtn").addEventListener("click", () => {
   if (!started) return;

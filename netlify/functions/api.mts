@@ -8,6 +8,7 @@ import type { Config, Context } from "@netlify/functions";
 //   rooms/<CODE>/now       { item, startedAt }              written by host only
 //   rooms/<CODE>/pos       { id, t, at }                    playback position, written by host
 //   rooms/<CODE>/skip      { at }                           written by remotes
+//   rooms/<CODE>/pause     { paused, at }                   written by remotes/TV, reset each song
 //   rooms/<CODE>/q/<id>    queue item                       one key per song
 
 const ROOM_TTL_MS = 24 * 60 * 60 * 1000;
@@ -103,12 +104,13 @@ async function listQueue(code: string): Promise<QueueItem[]> {
 async function roomState(room: RoomMeta) {
   const s = store();
   const code = room.code;
-  const [queue, now, skip, pos, host] = await Promise.all([
+  const [queue, now, skip, pos, host, pause] = await Promise.all([
     listQueue(code),
     s.get(`rooms/${code}/now`, { type: "json" }),
     s.get(`rooms/${code}/skip`, { type: "json" }),
     s.get(`rooms/${code}/pos`, { type: "json" }),
     getHost(room),
+    s.get(`rooms/${code}/pause`, { type: "json" }),
   ]);
   return {
     code,
@@ -116,6 +118,7 @@ async function roomState(room: RoomMeta) {
     pos: pos ?? null,
     hostSince: host.since,
     skipAt: (skip as { at?: number } | null)?.at ?? 0,
+    paused: Boolean((pause as { paused?: boolean } | null)?.paused),
     queue,
   };
 }
@@ -233,6 +236,14 @@ export default async (req: Request, _context: Context) => {
       }
     }
 
+    // POST /api/rooms/:code/pause { paused }  (any remote or the TV)
+    if (action === "pause" && method === "POST") {
+      const body = await readBody(req);
+      const paused = body.paused === true;
+      await s.setJSON(`rooms/${code}/pause`, { paused, at: Date.now() });
+      return json({ ok: true, paused });
+    }
+
     // POST /api/rooms/:code/skip   (any remote can ask the TV to skip)
     if (action === "skip" && method === "POST") {
       await s.setJSON(`rooms/${code}/skip`, { at: Date.now() });
@@ -250,7 +261,7 @@ export default async (req: Request, _context: Context) => {
       } else {
         await s.delete(`rooms/${code}/now`);
       }
-      await s.delete(`rooms/${code}/pos`);
+      await Promise.all([s.delete(`rooms/${code}/pos`), s.delete(`rooms/${code}/pause`)]);
       return json(await roomState(room));
     }
 
