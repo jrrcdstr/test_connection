@@ -1,0 +1,13 @@
+{
+  "name": "videoke-party",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Videoke party: TV host screen + phone remote with a shared YouTube queue",
+  "dependencies": {
+    "@netlify/blobs": "^11.1.8"
+  },
+  "devDependencies": {
+    "@netlify/functions": "^6.1.1"
+  }
+}

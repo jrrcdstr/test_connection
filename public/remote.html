@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kanta Tayo! Remote</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    main { max-width: 560px; margin: 0 auto; padding: 16px; display: grid; gap: 14px; }
+    header { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+    header .brand { font-size: 24px; margin: 0; }
+    .roomtag { font-weight: 800; letter-spacing: .15em; color: var(--yellow); background: var(--card); border: 1px solid var(--line); padding: 6px 12px; border-radius: 999px; }
+    .now { display: grid; grid-template-columns: 96px 1fr; gap: 12px; align-items: center; }
+    .now img { width: 96px; height: 54px; object-fit: cover; border-radius: 8px; background: #000; }
+    .now .label { font-size: 12px; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); }
+    .now .who { font-weight: 800; color: var(--yellow); }
+    .now .song { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    form { display: grid; gap: 10px; }
+    .row { display: flex; gap: 8px; }
+    .row > * { flex: 1; }
+    h3 { margin: 0 0 10px; font-size: 16px; }
+    .hint { font-size: 13px; color: var(--muted); margin: 0; }
+    .joinbox { text-align: center; }
+    .joinbox input { text-transform: uppercase; letter-spacing: .3em; font-weight: 800; text-align: center; font-size: 22px; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <a href="/" style="text-decoration:none"><h1 class="brand">Kanta Tayo! 🎤</h1></a>
+      <span class="roomtag hidden" id="roomTag"></span>
+    </header>
+
+    <section class="card joinbox hidden" id="joinBox">
+      <h3>Enter the code on the TV</h3>
+      <form id="joinForm">
+        <input id="codeInput" maxlength="4" placeholder="ABCD" autocomplete="off" aria-label="Room code" required>
+        <button type="submit">Join party</button>
+      </form>
+    </section>
+
+    <div id="app" class="hidden" style="display:grid;gap:14px">
+      <section class="card now" id="nowCard">
+        <img id="nowImg" alt="">
+        <div style="min-width:0">
+          <div class="label">Now singing</div>
+          <div class="who" id="nowWho">Nobody yet</div>
+          <div class="song" id="nowSong"></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h3>➕ Add a song</h3>
+        <form id="addForm">
+          <input id="singer" placeholder="Your name" maxlength="30" autocomplete="name" required>
+          <input id="url" placeholder="Paste YouTube karaoke link" autocomplete="off" required inputmode="url">
+          <div class="row">
+            <button type="button" class="btn-ghost" id="pasteBtn">📋 Paste</button>
+            <button type="submit" id="addBtn">Add to queue</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="card">
+        <h3>🔎 Find a song</h3>
+        <form id="findForm">
+          <div class="row">
+            <input id="q" placeholder="Song title or artist" autocomplete="off">
+            <button type="submit" class="btn-yellow" style="flex:0 0 auto">Search</button>
+          </div>
+          <p class="hint">Opens YouTube with “karaoke” added. Tap <b>Share → Copy link</b>, come back here and tap <b>Paste</b>.</p>
+        </form>
+      </section>
+
+      <section class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <h3 style="margin:0">🎶 Queue <span class="muted small" id="count"></span></h3>
+          <button class="btn-ghost btn-small" id="skipBtn">⏭ Skip current</button>
+        </div>
+        <ul class="queue" id="queue"></ul>
+      </section>
+    </div>
+  </main>
+  <script type="module" src="/remote.js"></script>
+</body>
+</html>
