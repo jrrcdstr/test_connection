@@ -24,6 +24,9 @@ html, body {
   min-height: 100%;
 }
 
+/* Leave room so page content can scroll above Netlify's floating badge. */
+body { padding-bottom: 96px; }
+
 a { color: var(--cyan); }
 
 .brand {
