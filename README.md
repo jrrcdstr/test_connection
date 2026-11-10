@@ -10,6 +10,12 @@ Free videoke web app: open it on the TV, everyone adds YouTube karaoke songs fro
 
 Rooms expire after 24 hours.
 
+## Song search
+Phones can search for songs inside the app. This uses the official YouTube Data API and needs a free key:
+set `YOUTUBE_API_KEY` in Netlify (Project configuration → Environment variables, scope Functions) and redeploy.
+The free quota is about 100 new searches a day; results are cached for a week, so repeated songs don't count.
+Without a key, or when the quota runs out, the phone opens YouTube's own search instead.
+
 ## Run locally
 ```bash
 npm install

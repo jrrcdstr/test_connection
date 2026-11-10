@@ -1,4 +1,4 @@
-import { api, fetchRoom, store, toast, thumb, renderQueue, setLyric, setOffline, confirmTap } from "/common.js";
+import { api, fetchRoom, store, toast, thumb, escapeHtml, renderQueue, setLyric, setOffline, confirmTap } from "/common.js";
 
 const $ = (id) => document.getElementById(id);
 const POLL_MS = 3000;
@@ -94,7 +94,7 @@ let pollTimer = null;
 let failures = 0;
 
 const inApp = () => !$("app").classList.contains("hidden");
-const looksLikeLink = (text) => /youtu\.?be|^[A-Za-z0-9_-]{11}$/.test(text.trim());
+const looksLikeLink = (text) => /youtu\.?be/i.test(text);
 
 function showJoin(message) {
   $("app").classList.add("hidden");
@@ -170,39 +170,110 @@ $("joinForm").addEventListener("submit", (e) => {
 
 $("singer").value = store("singer") || "";
 
-// One field: a YouTube link gets added, anything else is searched on YouTube.
+// One field: a YouTube link is added straight away, anything else is searched.
 function updateAddButton() {
-  $("addBtn").textContent = looksLikeLink($("url").value) ? "Add to queue" : "Find on YouTube";
+  $("addBtn").textContent = looksLikeLink($("url").value) ? "Add to queue" : "Search";
 }
 $("url").addEventListener("input", updateAddButton);
+
+function hint(text) {
+  $("addHint").textContent = text || "";
+  $("addHint").classList.toggle("hidden", !text);
+}
+
+function singerName() {
+  const singer = $("singer").value.trim();
+  if (!singer) {
+    toast("Type your name first, so everyone knows whose turn it is.");
+    $("singer").focus();
+    return null;
+  }
+  store("singer", singer);
+  return singer;
+}
+
+async function addSong(url, singer) {
+  const item = await api(`rooms/${code}/queue`, { method: "POST", body: { url, singer } });
+  toast(`Added to queue: ${item.title}`);
+  refresh();
+}
+
+function openYouTubeSearch(text) {
+  const query = /karaoke|videoke/i.test(text) ? text : `${text} karaoke`;
+  window.open(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`, "_blank", "noopener");
+}
+
+async function search(text) {
+  const btn = $("addBtn");
+  btn.disabled = true;
+  btn.textContent = "Searching…";
+  hint("");
+  try {
+    const { results } = await api(`search?room=${code}&q=${encodeURIComponent(text)}`);
+    if (!results.length) {
+      $("results").innerHTML = "";
+      hint(`No karaoke videos found for "${text}". Try adding the artist's name.`);
+      return;
+    }
+    $("results").innerHTML = results.map((r) => `
+      <li>
+        <img src="${thumb(r.videoId)}" alt="" width="96" height="54" loading="lazy" decoding="async">
+        <div>
+          <div class="singer">${escapeHtml(r.title)}</div>
+          <div class="title">${escapeHtml(r.channel)}</div>
+        </div>
+        <button type="button" data-video="${escapeHtml(r.videoId)}" aria-label="Add ${escapeHtml(r.title)} to the queue">Add</button>
+      </li>`).join("");
+  } catch (err) {
+    $("results").innerHTML = "";
+    if (err.status === 501 || err.status === 429) {
+      // Search isn't available right now: fall back to finding the link in YouTube.
+      openYouTubeSearch(text);
+      hint(`${err.message} YouTube opened instead: tap Share, then Copy link, come back and tap Paste.`);
+    } else {
+      toast(err.message, 4000);
+    }
+  } finally {
+    btn.disabled = false;
+    updateAddButton();
+  }
+}
 
 $("addForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   const text = $("url").value.trim();
-  const singer = $("singer").value.trim();
-  store("singer", singer);
+  if (!looksLikeLink(text)) { search(text); return; }
 
-  if (!looksLikeLink(text)) {
-    const query = /karaoke|videoke/i.test(text) ? text : `${text} karaoke`;
-    window.open(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`, "_blank", "noopener");
-    $("url").value = "";
-    $("addHint").textContent = "In YouTube, tap Share, then Copy link. Come back and tap Paste.";
-    return;
-  }
-
+  const singer = singerName();
+  if (!singer) return;
   const btn = $("addBtn");
   btn.disabled = true;
   btn.textContent = "Adding…";
   try {
-    const item = await api(`rooms/${code}/queue`, { method: "POST", body: { url: text, singer } });
+    await addSong(text, singer);
     $("url").value = "";
-    toast(`Added to queue: ${item.title}`);
-    refresh();
   } catch (err) {
     toast(err.message, 4000);
   } finally {
     btn.disabled = false;
     updateAddButton();
+  }
+});
+
+$("results").addEventListener("click", async (e) => {
+  const btn = e.target.closest("button[data-video]");
+  if (!btn) return;
+  const singer = singerName();
+  if (!singer) return;
+  btn.disabled = true;
+  btn.textContent = "Adding…";
+  try {
+    await addSong(btn.dataset.video, singer);
+    btn.textContent = "Added";
+  } catch (err) {
+    toast(err.message, 4000);
+    btn.disabled = false;
+    btn.textContent = "Add";
   }
 });
 

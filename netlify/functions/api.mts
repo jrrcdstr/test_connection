@@ -82,6 +82,55 @@ async function lookupVideo(videoId: string) {
   }
 }
 
+// ---------- Song search (YouTube Data API) ----------
+// Each search costs 100 of the key's 10,000 free daily units, so results are
+// kept for a week and shared by everyone who looks for the same song.
+const SEARCH_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+type SearchResult = { videoId: string; title: string; channel: string };
+
+const decodeEntities = (t: string) =>
+  t.replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+
+async function searchSongs(rawQuery: string): Promise<{ status: number; body: Record<string, unknown> }> {
+  const words = rawQuery.toLowerCase().replace(/\s+/g, " ").trim().slice(0, 80);
+  if (words.length < 2) return { status: 400, body: { error: "Type a song title or an artist." } };
+  const query = /karaoke|videoke/.test(words) ? words : `${words} karaoke`;
+
+  const s = store();
+  const cacheKey = `search/${encodeURIComponent(query)}`;
+  const cached = (await s.get(cacheKey, { type: "json" })) as { at: number; results: SearchResult[] } | null;
+  if (cached && Date.now() - cached.at < SEARCH_TTL_MS) return { status: 200, body: { results: cached.results } };
+
+  const key = Netlify.env.get("YOUTUBE_API_KEY");
+  if (!key) return { status: 501, body: { error: "Search isn't set up yet.", code: "no_key" } };
+
+  const api = new URL("https://www.googleapis.com/youtube/v3/search");
+  api.search = new URLSearchParams({
+    part: "snippet", type: "video", videoEmbeddable: "true", maxResults: "10", safeSearch: "moderate", q: query, key,
+  }).toString();
+  const res = await fetch(api);
+  if (!res.ok) {
+    const text = await res.text();
+    console.error("youtube search failed", res.status, text.slice(0, 300));
+    if (res.status === 403 && /quota/i.test(text)) {
+      return { status: 429, body: { error: "Today's free searches are used up.", code: "quota" } };
+    }
+    return { status: 502, body: { error: "YouTube search didn't answer. Try again.", code: "upstream" } };
+  }
+  const data = (await res.json()) as {
+    items?: { id?: { videoId?: string }; snippet?: { title?: string; channelTitle?: string } }[];
+  };
+  const results: SearchResult[] = (data.items ?? [])
+    .filter((i) => i.id?.videoId)
+    .map((i) => ({
+      videoId: i.id!.videoId!,
+      title: decodeEntities(i.snippet?.title ?? "YouTube video").slice(0, 200),
+      channel: decodeEntities(i.snippet?.channelTitle ?? "").slice(0, 100),
+    }));
+  await s.setJSON(cacheKey, { at: Date.now(), results });
+  return { status: 200, body: { results } };
+}
+
 async function getRoom(code: string): Promise<RoomMeta | null> {
   const meta = (await store().get(`rooms/${code}/meta`, { type: "json" })) as RoomMeta | null;
   if (!meta || Date.now() - meta.createdAt > ROOM_TTL_MS) return null;
@@ -167,6 +216,16 @@ export default async (req: Request, _context: Context) => {
         }
       }
       return fail("Couldn't create a room, please try again.", 500);
+    }
+
+    // GET /api/search?room=CODE&q=words   (only for people in a live party)
+    if (parts.length === 1 && parts[0] === "search" && method === "GET") {
+      const roomCode = (url.searchParams.get("room") ?? "").toUpperCase();
+      if (!/^[A-Z0-9]{4}$/.test(roomCode) || !(await getRoom(roomCode))) {
+        return fail("Room not found or expired. Ask the host for the new code.", 410);
+      }
+      const found = await searchSongs(url.searchParams.get("q") ?? "");
+      return json(found.body, found.status);
     }
 
     if (parts[0] !== "rooms" || !parts[1]) return fail("Not found", 404);
