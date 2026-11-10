@@ -6,16 +6,17 @@
   <title>Kanta Tayo videoke</title>
   <meta name="description" content="Free videoke for your party. Play songs on the TV and pick them from your phone.">
   <meta name="theme-color" content="#1535a8">
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="icon" href="/icon-192.png" sizes="192x192" type="image/png">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
+  <link rel="preload" href="/logo.webp" as="image" type="image/webp">
   <link rel="preload" href="/fonts/baloo2.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/style.css">
   <style>
-    main { max-width: 34rem; margin: 0 auto; padding: clamp(32px, 9vh, 96px) 20px 0; }
-    h1 { font-size: clamp(56px, 17vw, 112px); }
-    .lead { font-size: 19px; margin: 20px 0 36px; max-width: 26rem; }
+    main { max-width: 34rem; margin: 0 auto; padding: clamp(20px, 5vh, 56px) 20px 0; }
+    h1 img { display: block; width: min(100%, 25rem); height: auto; margin-left: -3%; }
+    .lead { font-size: 19px; margin: 12px 0 32px; max-width: 26rem; }
     .join { margin-top: 40px; padding-top: 28px; border-top: 2px solid var(--deep); }
     .join form { display: flex; gap: 10px; max-width: 22rem; }
     .join .codefield { flex: 1; min-width: 0; }
@@ -26,7 +27,7 @@
 </head>
 <body>
   <main>
-    <h1 class="lyric sing" data-text="Kanta tayo!">Kanta tayo!</h1>
+    <h1><img src="/logo.webp" alt="Kanta Tayo" width="640" height="611" fetchpriority="high"></h1>
     <p class="lead">Videoke for your party. Songs play on the TV, and everyone picks theirs from a phone.</p>
 
     <a class="btn btn-wide" href="/host.html">Use this screen as the TV</a>

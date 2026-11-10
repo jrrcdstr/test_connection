@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Kanta Tayo remote</title>
   <meta name="theme-color" content="#1535a8">
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="icon" href="/icon-192.png" sizes="192x192" type="image/png">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="preload" href="/fonts/baloo2.woff2" as="font" type="font/woff2" crossorigin>
@@ -14,7 +14,9 @@
   <style>
     main { max-width: 34rem; margin: 0 auto; padding: 14px 16px 0; }
     header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 18px; }
-    header a { font: 800 22px/1 var(--display); color: var(--white); text-decoration: none; }
+    header a { font: 800 22px/1 var(--display); color: var(--white); text-decoration: none; display: flex; align-items: center; gap: 10px; }
+    header a img { display: block; border-radius: 9px; }
+    header { align-items: center !important; }
     .roomtag { font: 800 18px/1 var(--display); letter-spacing: 0.14em; color: var(--sky); }
     section { padding: 22px 0; border-top: 2px solid var(--deep); }
     section:first-of-type { border-top: 0; padding-top: 0; }
@@ -46,7 +48,7 @@
 <body>
   <main>
     <header>
-      <a href="/">Kanta tayo!</a>
+      <a href="/" aria-label="Kanta Tayo home"><img src="/icon-192.png" alt="" width="40" height="40">Kanta Tayo</a>
       <span class="roomtag hidden" id="roomTag"></span>
     </header>
 

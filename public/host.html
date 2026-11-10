@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Kanta Tayo TV</title>
   <meta name="theme-color" content="#1535a8">
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="icon" href="/icon-192.png" sizes="192x192" type="image/png">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="preload" href="/fonts/baloo2.woff2" as="font" type="font/woff2" crossorigin>
@@ -53,7 +53,7 @@
     details summary { cursor: pointer; font-weight: 700; padding: 8px 0; }
     details form { display: grid; gap: 10px; padding-top: 8px; }
 
-    .cover h1 { font-size: clamp(48px, 12vw, 84px); margin-bottom: 16px; }
+    .cover h1 img { display: block; width: min(100%, 20rem); height: auto; margin: 0 0 12px -3%; }
     .cover h2 { font: 800 32px/1.1 var(--display); margin-bottom: 12px; }
     .cover p { margin-bottom: 20px; }
     .check { display: flex; gap: 10px; align-items: center; font-weight: 400; font-size: 16px; margin-bottom: 20px; cursor: pointer; }
@@ -63,7 +63,7 @@
 <body>
   <div class="cover" id="start">
     <div>
-      <h1 class="lyric" data-text="Kanta tayo!">Kanta tayo!</h1>
+      <h1><img src="/logo.webp" alt="Kanta Tayo" width="640" height="611"></h1>
       <p>This screen plays the songs. Put it on the TV, then start, so the browser lets it play sound.</p>
       <label class="check"><input type="checkbox" id="useMic"> Score singers with this device's microphone</label>
       <button class="btn-wide" id="startBtn">Start the party</button>
