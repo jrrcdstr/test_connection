@@ -198,10 +198,8 @@ async function addSong(url, singer) {
   refresh();
 }
 
-function openYouTubeSearch(text) {
-  const query = /karaoke|videoke/i.test(text) ? text : `${text} karaoke`;
-  window.open(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`, "_blank", "noopener");
-}
+const youTubeSearchUrl = (text) =>
+  `https://www.youtube.com/results?search_query=${encodeURIComponent(/karaoke|videoke/i.test(text) ? text : `${text} karaoke`)}`;
 
 async function search(text) {
   const btn = $("addBtn");
@@ -220,16 +218,16 @@ async function search(text) {
         <img src="${thumb(r.videoId)}" alt="" width="96" height="54" loading="lazy" decoding="async">
         <div>
           <div class="singer">${escapeHtml(r.title)}</div>
-          <div class="title">${escapeHtml(r.channel)}</div>
+          <div class="title">${escapeHtml([r.length, r.channel].filter(Boolean).join(", "))}</div>
         </div>
         <button type="button" data-video="${escapeHtml(r.videoId)}" aria-label="Add ${escapeHtml(r.title)} to the queue">Add</button>
       </li>`).join("");
   } catch (err) {
     $("results").innerHTML = "";
-    if (err.status === 501 || err.status === 429) {
-      // Search isn't available right now: fall back to finding the link in YouTube.
-      openYouTubeSearch(text);
-      hint(`${err.message} YouTube opened instead: tap Share, then Copy link, come back and tap Paste.`);
+    if (err.status === 502 || err.status === 501 || err.status === 429) {
+      // Search is down: offer the old way. A link the person taps, so the phone doesn't block it.
+      $("addHint").innerHTML = `${escapeHtml(err.message)} <a href="${escapeHtml(youTubeSearchUrl(text))}" target="_blank" rel="noopener">Find it in YouTube</a>, tap Share, then Copy link, and paste the link here.`;
+      $("addHint").classList.remove("hidden");
     } else {
       toast(err.message, 4000);
     }

@@ -82,16 +82,130 @@ async function lookupVideo(videoId: string) {
   }
 }
 
-// ---------- Song search (YouTube Data API) ----------
-// Each search costs 100 of the key's 10,000 free daily units, so results are
-// kept for a week and shared by everyone who looks for the same song.
+// ---------- Song search ----------
+// Results are kept for a week and shared by everyone who looks for the same song.
+// With YOUTUBE_API_KEY set, the official Data API is used. Without it, results are
+// read from YouTube's own search page. That page is not a supported interface: it
+// can change or refuse us at any time, so every failure returns a code the phone
+// turns into "open YouTube and paste the link".
 const SEARCH_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-type SearchResult = { videoId: string; title: string; channel: string };
+type SearchResult = { videoId: string; title: string; channel: string; length?: string };
+type SearchOutcome = { status: number; body: Record<string, unknown> };
 
 const decodeEntities = (t: string) =>
   t.replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
 
-async function searchSongs(rawQuery: string): Promise<{ status: number; body: Record<string, unknown> }> {
+const UPSTREAM: SearchOutcome = {
+  status: 502,
+  body: { error: "Search isn't working right now.", code: "upstream" },
+};
+
+async function searchWithApi(query: string, key: string): Promise<SearchResult[] | SearchOutcome> {
+  const api = new URL("https://www.googleapis.com/youtube/v3/search");
+  api.search = new URLSearchParams({
+    part: "snippet", type: "video", videoEmbeddable: "true", maxResults: "10", safeSearch: "moderate", q: query, key,
+  }).toString();
+  const res = await fetch(api);
+  if (!res.ok) {
+    const text = await res.text();
+    console.error("youtube api search failed", res.status, text.slice(0, 300));
+    if (res.status === 403 && /quota/i.test(text)) {
+      return { status: 429, body: { error: "Today's free searches are used up.", code: "quota" } };
+    }
+    return UPSTREAM;
+  }
+  const data = (await res.json()) as {
+    items?: { id?: { videoId?: string }; snippet?: { title?: string; channelTitle?: string } }[];
+  };
+  return (data.items ?? [])
+    .filter((i) => i.id?.videoId)
+    .map((i) => ({
+      videoId: i.id!.videoId!,
+      title: decodeEntities(i.snippet?.title ?? "YouTube video").slice(0, 200),
+      channel: decodeEntities(i.snippet?.channelTitle ?? "").slice(0, 100),
+    }));
+}
+
+// Collect every "videoRenderer" object, wherever YouTube has nested it this month.
+function collectVideos(node: unknown, found: Record<string, any>[], limit: number) {
+  if (found.length >= limit || node === null || typeof node !== "object") return;
+  if (Array.isArray(node)) {
+    for (const child of node) collectVideos(child, found, limit);
+    return;
+  }
+  for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+    if (key === "videoRenderer" && value && typeof value === "object") found.push(value as Record<string, any>);
+    else collectVideos(value, found, limit);
+    if (found.length >= limit) return;
+  }
+}
+
+const runsText = (v: any): string =>
+  typeof v?.simpleText === "string" ? v.simpleText : Array.isArray(v?.runs) ? v.runs.map((r: any) => r?.text ?? "").join("") : "";
+
+async function canEmbed(videoId: string): Promise<boolean> {
+  try {
+    const target = encodeURIComponent(`https://www.youtube.com/watch?v=${videoId}`);
+    const res = await fetch(`https://www.youtube.com/oembed?format=json&url=${target}`);
+    return res.ok;
+  } catch {
+    return true; // can't tell; the TV skips it if it really can't play
+  }
+}
+
+async function searchWithPage(query: string): Promise<SearchResult[] | SearchOutcome> {
+  let html: string;
+  try {
+    // sp=EgIQAQ== asks for videos only (no channels, playlists or shorts shelves)
+    const page = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}&sp=EgIQAQ%253D%253D&hl=en`;
+    const res = await fetch(page, {
+      headers: {
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
+        "accept-language": "en-US,en;q=0.9",
+        cookie: "SOCS=CAI; CONSENT=YES+1",
+      },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) {
+      console.error("youtube page search failed", res.status);
+      return UPSTREAM;
+    }
+    html = await res.text();
+  } catch (err) {
+    console.error("youtube page search failed", err);
+    return UPSTREAM;
+  }
+
+  const start = html.indexOf("var ytInitialData = ");
+  const end = start < 0 ? -1 : html.indexOf(";</script>", start);
+  if (start < 0 || end < 0) {
+    console.error("youtube page search: no data block (page changed or we were refused)");
+    return UPSTREAM;
+  }
+  let data: unknown;
+  try {
+    data = JSON.parse(html.slice(start + "var ytInitialData = ".length, end));
+  } catch {
+    console.error("youtube page search: data block did not parse");
+    return UPSTREAM;
+  }
+
+  const raw: Record<string, any>[] = [];
+  collectVideos(data, raw, 16);
+  const candidates = raw
+    .filter((v) => typeof v.videoId === "string" && /^[A-Za-z0-9_-]{11}$/.test(v.videoId) && runsText(v.lengthText))
+    .map((v) => ({
+      videoId: v.videoId as string,
+      title: (runsText(v.title) || "YouTube video").slice(0, 200),
+      channel: (runsText(v.ownerText) || runsText(v.longBylineText)).slice(0, 100),
+      length: runsText(v.lengthText).slice(0, 10),
+    }));
+  // Leave out videos that aren't allowed to play outside YouTube.
+  const playable = await Promise.all(candidates.map((c) => canEmbed(c.videoId)));
+  return candidates.filter((_, i) => playable[i]).slice(0, 10);
+}
+
+async function searchSongs(rawQuery: string): Promise<SearchOutcome> {
   const words = rawQuery.toLowerCase().replace(/\s+/g, " ").trim().slice(0, 80);
   if (words.length < 2) return { status: 400, body: { error: "Type a song title or an artist." } };
   const query = /karaoke|videoke/.test(words) ? words : `${words} karaoke`;
@@ -102,33 +216,10 @@ async function searchSongs(rawQuery: string): Promise<{ status: number; body: Re
   if (cached && Date.now() - cached.at < SEARCH_TTL_MS) return { status: 200, body: { results: cached.results } };
 
   const key = Netlify.env.get("YOUTUBE_API_KEY");
-  if (!key) return { status: 501, body: { error: "Search isn't set up yet.", code: "no_key" } };
-
-  const api = new URL("https://www.googleapis.com/youtube/v3/search");
-  api.search = new URLSearchParams({
-    part: "snippet", type: "video", videoEmbeddable: "true", maxResults: "10", safeSearch: "moderate", q: query, key,
-  }).toString();
-  const res = await fetch(api);
-  if (!res.ok) {
-    const text = await res.text();
-    console.error("youtube search failed", res.status, text.slice(0, 300));
-    if (res.status === 403 && /quota/i.test(text)) {
-      return { status: 429, body: { error: "Today's free searches are used up.", code: "quota" } };
-    }
-    return { status: 502, body: { error: "YouTube search didn't answer. Try again.", code: "upstream" } };
-  }
-  const data = (await res.json()) as {
-    items?: { id?: { videoId?: string }; snippet?: { title?: string; channelTitle?: string } }[];
-  };
-  const results: SearchResult[] = (data.items ?? [])
-    .filter((i) => i.id?.videoId)
-    .map((i) => ({
-      videoId: i.id!.videoId!,
-      title: decodeEntities(i.snippet?.title ?? "YouTube video").slice(0, 200),
-      channel: decodeEntities(i.snippet?.channelTitle ?? "").slice(0, 100),
-    }));
-  await s.setJSON(cacheKey, { at: Date.now(), results });
-  return { status: 200, body: { results } };
+  const found = key ? await searchWithApi(query, key) : await searchWithPage(query);
+  if (!Array.isArray(found)) return found;
+  if (found.length) await s.setJSON(cacheKey, { at: Date.now(), results: found });
+  return { status: 200, body: { results: found } };
 }
 
 async function getRoom(code: string): Promise<RoomMeta | null> {
