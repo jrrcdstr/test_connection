@@ -3,122 +3,132 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Kanta Tayo! TV Screen</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap" rel="stylesheet">
+  <title>Kanta Tayo TV</title>
+  <meta name="theme-color" content="#1535a8">
+  <link rel="preload" href="/fonts/baloo2.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preconnect" href="https://www.youtube.com">
+  <link rel="preconnect" href="https://i.ytimg.com">
   <link rel="stylesheet" href="/style.css">
   <style>
-    body { overflow-x: hidden; }
-    .layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; padding: 16px; min-height: 100vh; }
-    @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
-    .stage { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-    .now { display: flex; align-items: center; gap: 12px; justify-content: space-between; flex-wrap: wrap; }
-    .now .label { font-size: 13px; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); }
-    .now .who { font-size: clamp(20px, 3vw, 32px); font-weight: 800; color: var(--yellow); line-height: 1.1; }
-    .now .song { color: var(--text); font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60vw; }
-    .controls { display: flex; gap: 8px; flex-wrap: wrap; }
-    .screen { position: relative; aspect-ratio: 16 / 9; background: #000; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--line); }
+    .layout { display: grid; grid-template-columns: minmax(0, 1fr) clamp(280px, 26vw, 380px); gap: 24px; padding: 20px 24px; }
+    @media (max-width: 900px) { .layout { grid-template-columns: 1fr; padding: 16px; } }
+
+    .stage { min-width: 0; }
+    .bar { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; }
+    .bar .who { font-size: clamp(30px, 4vw, 56px); max-width: 100%; }
+    .bar .song { color: var(--sky); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 6px; }
+    .bar .nowtext { min-width: 0; flex: 1 1 16rem; }
+    .controls { display: flex; gap: 8px; }
+
+    .screen { container-type: size; position: relative; aspect-ratio: 16 / 9; background: #000; border-radius: 6px; overflow: hidden; box-shadow: 0 0 0 4px var(--deep); }
     .screen iframe, #player { position: absolute; inset: 0; width: 100%; height: 100%; }
-    .splash, .score { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 16px; gap: 10px; }
-    .splash { background: radial-gradient(circle at center, #3a1a6b, #0c0616); }
-    .splash .big { font-size: clamp(28px, 5vw, 56px); font-weight: 800; }
-    .splash .code { font-size: clamp(48px, 10vw, 120px); font-weight: 800; letter-spacing: .15em; color: var(--yellow); }
-    .score { background: #0c0616ee; z-index: 5; }
-    .score .num { font-size: clamp(90px, 20vw, 240px); font-weight: 800; line-height: 1; background: linear-gradient(180deg, var(--yellow), var(--pink)); -webkit-background-clip: text; background-clip: text; color: transparent; }
-    .score .msg { font-size: clamp(22px, 4vw, 44px); font-weight: 800; }
-    .score .sub { color: var(--muted); }
-    .hidden { display: none !important; }
-    .paused { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); z-index: 4; background: #000c; border: 1px solid var(--line); color: var(--yellow); font-weight: 800; font-size: clamp(18px, 3vw, 28px); padding: 8px 20px; border-radius: 999px; pointer-events: none; }
-    aside { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
-    .join { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; }
-    .join .qr { background: #fff; padding: 8px; border-radius: 10px; width: 136px; height: 136px; }
-    .join .qr svg { width: 120px; height: 120px; display: block; }
-    .join .code { font-size: 40px; font-weight: 800; letter-spacing: .12em; color: var(--yellow); line-height: 1; }
-    .join .url { word-break: break-all; }
-    h3 { margin: 0 0 10px; font-size: 16px; }
-    .addform { display: grid; gap: 8px; }
-    .start { position: fixed; inset: 0; background: #0c0616f2; z-index: 50; display: flex; align-items: center; justify-content: center; padding: 16px; }
-    .start .card { max-width: 460px; text-align: center; }
-    .start label { display: flex; gap: 8px; align-items: center; justify-content: center; margin: 14px 0 18px; }
-    .start input[type=checkbox] { width: 20px; height: 20px; }
-    .confetti { position: absolute; top: -10px; width: 10px; height: 14px; animation: fall linear forwards; z-index: 6; }
+    .splash, .score { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 4%; }
+    .splash { background: var(--blue); gap: 3vh; }
+    .splash .line { font-size: clamp(26px, 8.4cqw, 120px); }
+    .splash .at { font-size: clamp(15px, 2.6cqw, 32px); color: var(--sky); }
+    .splash .at b { color: var(--white); font: 800 1.5em var(--display); letter-spacing: 0.12em; margin-left: 0.3em; }
+    .score { background: var(--blue); z-index: 5; }
+    .score .who { font-size: clamp(20px, 7cqh, 56px); }
+    .score .lyric { pointer-events: none; }
+    .score .num { font-size: min(30cqw, 46cqh); line-height: 0.95; font-variant-numeric: tabular-nums; }
+    .score .num::before { -webkit-text-stroke-width: 0.09em; }
+    .score .msg { font-size: clamp(20px, 8cqh, 60px); min-height: 1.2em; }
+    .score button { margin-top: 3cqh; position: relative; z-index: 1; }
+    .pausedmark { position: absolute; top: 4%; left: 50%; transform: translateX(-50%); z-index: 4; font-size: clamp(24px, 4vw, 56px); pointer-events: none; }
+    .confetti { position: absolute; top: -14px; width: 10px; height: 14px; z-index: 6; animation: fall linear forwards; }
     @keyframes fall { to { transform: translateY(110vh) rotate(720deg); } }
+    @media (prefers-reduced-motion: reduce) { .confetti { display: none; } }
+
+    aside { min-width: 0; display: grid; gap: 28px; align-content: start; }
+    aside h2 { font: 800 22px/1.1 var(--display); margin-bottom: 8px; }
+    .joinrow { display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 14px; align-items: center; }
+    .qr { background: var(--white); padding: 8px; border-radius: 6px; width: 132px; height: 132px; }
+    .qr svg { width: 116px; height: 116px; display: block; }
+    .roomcode { font-size: clamp(40px, 4.4vw, 60px); letter-spacing: 0.08em; }
+    .url { overflow-wrap: anywhere; }
+    details summary { cursor: pointer; font-weight: 700; padding: 8px 0; }
+    details form { display: grid; gap: 10px; padding-top: 8px; }
+
+    .cover h1 { font-size: clamp(48px, 12vw, 84px); margin-bottom: 16px; }
+    .cover h2 { font: 800 32px/1.1 var(--display); margin-bottom: 12px; }
+    .cover p { margin-bottom: 20px; }
+    .check { display: flex; gap: 10px; align-items: center; font-weight: 400; font-size: 16px; margin-bottom: 20px; cursor: pointer; }
+    .check input { width: 22px; height: 22px; accent-color: var(--yellow); }
   </style>
 </head>
 <body>
-  <div class="start" id="start">
-    <div class="card">
-      <h2 class="brand" style="font-size:34px;margin:0 0 8px">Kanta Tayo! 🎤</h2>
-      <p class="muted">This screen plays the songs. Put it on the TV, then tap start so the browser allows sound.</p>
-      <p class="muted small">💡 Weak Wi-Fi? Connect the TV to a phone hotspot as a backup.</p>
-      <label><input type="checkbox" id="useMic"> Use microphone for scoring (optional)</label>
-      <button class="btn-yellow" id="startBtn" style="width:100%">▶ Start the party</button>
-      <p class="muted small" id="startMsg" style="margin-top:12px"></p>
+  <div class="cover" id="start">
+    <div>
+      <h1 class="lyric" data-text="Kanta tayo!">Kanta tayo!</h1>
+      <p>This screen plays the songs. Put it on the TV, then start, so the browser lets it play sound.</p>
+      <label class="check"><input type="checkbox" id="useMic"> Score singers with this device's microphone</label>
+      <button class="btn-wide" id="startBtn">Start the party</button>
+      <p class="quiet small" id="startMsg" style="margin:16px 0 0">If the Wi-Fi is weak, connect this device to a phone hotspot.</p>
     </div>
   </div>
 
-  <div class="start hidden" id="moved">
-    <div class="card">
-      <h2 style="font-size:28px;margin:0 0 8px">📺 The party moved to another screen</h2>
-      <p class="muted">Someone made another device the TV, so this screen stopped playing. The queue continues there.</p>
-      <button class="btn-yellow" id="takeBackBtn" style="width:100%">Take it back to this screen</button>
+  <div class="cover hidden" id="moved">
+    <div>
+      <h2>The party moved to another screen</h2>
+      <p>Someone made another device the TV, so this one stopped playing. The songs continue there.</p>
+      <button class="btn-wide" id="takeBackBtn">Play here again</button>
     </div>
   </div>
 
   <div class="layout">
     <section class="stage">
-      <div class="now">
-        <div style="min-width:0">
-          <div class="label">Now singing</div>
-          <div class="who" id="nowWho">Waiting for songs…</div>
-          <div class="song" id="nowSong"></div>
+      <div class="bar">
+        <div class="nowtext">
+          <div class="lyric sung who" id="nowWho" data-text=""></div>
+          <div class="song" id="nowSong">No one is singing yet</div>
         </div>
         <div class="controls">
-          <button class="btn-ghost btn-small" id="pauseBtn" title="Pause or resume">⏸ Pause</button>
-          <button class="btn-ghost btn-small" id="skipBtn" title="Skip this song">⏭ Skip</button>
-          <button class="btn-ghost btn-small" id="fsBtn" title="Fullscreen">⛶ Fullscreen</button>
+          <button class="btn-plain" id="pauseBtn" disabled>Pause</button>
+          <button class="btn-plain" id="skipBtn" disabled>Skip</button>
+          <button class="btn-plain" id="fsBtn">Full screen</button>
         </div>
       </div>
       <div class="screen" id="screen">
         <div id="player"></div>
         <div class="splash" id="splash">
-          <div class="big">Add a song from your phone!</div>
-          <div class="muted">Scan the QR code or go to the site and enter</div>
-          <div class="code" id="splashCode">····</div>
+          <div class="lyric sing loop line" data-text="Scan, pick a song, sing">Scan, pick a song, sing</div>
+          <div class="at">Or go to <span id="splashHost"></span> and enter<b id="splashCode"></b></div>
         </div>
-        <div class="paused hidden" id="pausedBadge">⏸ Paused</div>
+        <div class="lyric sung pausedmark hidden" id="pausedBadge" data-text="Paused">Paused</div>
         <div class="score hidden" id="score">
-          <div class="sub" id="scoreWho"></div>
-          <div class="num" id="scoreNum">0</div>
-          <div class="msg" id="scoreMsg"></div>
-          <button class="btn-small" id="nextBtn" style="margin-top:8px">Next song ▶</button>
+          <div class="lyric who" id="scoreWho" data-text=""></div>
+          <div class="lyric sung num" id="scoreNum" data-text="0">0</div>
+          <div class="lyric msg" id="scoreMsg" data-text=""></div>
+          <button id="nextBtn">Next song</button>
         </div>
       </div>
     </section>
 
     <aside>
-      <div class="card join">
-        <div class="qr" id="qr" aria-label="QR code to join"></div>
-        <div style="min-width:0">
-          <div class="muted small">Room code</div>
-          <div class="code" id="code">····</div>
-          <div class="muted small url" id="joinUrl"></div>
+      <section>
+        <h2>Join with your phone</h2>
+        <div class="joinrow">
+          <div class="qr" id="qr" role="img" aria-label="QR code to join this party"></div>
+          <div>
+            <div class="lyric sung roomcode" id="code" data-text=""></div>
+            <div class="quiet small url" id="joinUrl"></div>
+          </div>
         </div>
-      </div>
+      </section>
 
-      <div class="card">
-        <h3>🎶 Up next <span class="muted small" id="count"></span></h3>
+      <section>
+        <h2>Up next <span class="quiet" id="count"></span></h2>
         <ul class="queue" id="queue"></ul>
-      </div>
+      </section>
 
-      <div class="card">
-        <h3>➕ Add a song here</h3>
-        <form class="addform" id="addForm">
-          <input id="singer" placeholder="Singer name" maxlength="30" autocomplete="off">
-          <input id="url" placeholder="Paste YouTube link" autocomplete="off" required>
-          <button type="submit">Add to queue</button>
+      <details>
+        <summary>Add a song from this screen</summary>
+        <form id="addForm">
+          <div><label for="singer">Singer</label><input id="singer" maxlength="30" autocomplete="off"></div>
+          <div><label for="url">YouTube link</label><input id="url" type="url" autocomplete="off" required></div>
+          <button type="submit" class="btn-plain">Add to queue</button>
         </form>
-      </div>
+      </details>
     </aside>
   </div>
 

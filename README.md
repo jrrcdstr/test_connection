@@ -5,7 +5,8 @@ Free videoke web app: open it on the TV, everyone adds YouTube karaoke songs fro
 ## How it works
 - **`/host.html`** (TV/laptop): creates a room, shows a 4-letter code + QR code, plays the queue with the official YouTube embedded player, shows a score after each song.
 - **`/remote.html`** (phones): join by code/QR, paste a YouTube link, see the queue, move a song to next, remove, or skip.
-- **`netlify/functions/api.mts`**: small API storing rooms and queues in Netlify Blobs (no extra accounts needed). Devices poll every 2–3 s.
+- **`netlify/functions/api.mts`**: small API storing rooms and queues in Netlify Blobs (no extra accounts needed). Devices poll every 2–3 s; each room has a version, so a poll where nothing changed costs two small reads and about 80 bytes.
+- **Design**: the blue idle screen of a videoke machine, with outlined lyric lettering (`.lyric` in `public/style.css`). Display font Baloo 2 is self-hosted in `public/fonts` (OFL licence); body text uses the system font.
 
 Rooms expire after 24 hours.
 

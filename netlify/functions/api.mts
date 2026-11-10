@@ -8,6 +8,7 @@ import type { Config, Context } from "@netlify/functions";
 //   rooms/<CODE>/now       { item, startedAt }              written by host only
 //   rooms/<CODE>/pos       { id, t, at }                    playback position, written by host
 //   rooms/<CODE>/skip      { at }                           written by remotes
+//   rooms/<CODE>/v         version string, bumped after every change the room should redraw for
 //   rooms/<CODE>/pause     { paused, at }                   written by remotes/TV, reset each song
 //   rooms/<CODE>/q/<id>    queue item                       one key per song
 
@@ -101,9 +102,17 @@ async function listQueue(code: string): Promise<QueueItem[]> {
   return items.filter((i): i is QueueItem => i !== null).sort((a, b) => a.order - b.order);
 }
 
+const getVersion = async (code: string): Promise<string> =>
+  (await store().get(`rooms/${code}/v`, { type: "text" })) ?? "0";
+
+// Call AFTER the data write, so a poller never pairs a new version with old data.
+const bump = (code: string) =>
+  store().set(`rooms/${code}/v`, `${Date.now().toString(36)}${randomString(3)}`);
+
 async function roomState(room: RoomMeta) {
   const s = store();
   const code = room.code;
+  const v = await getVersion(code); // read before the data, same reason as above
   const [queue, now, skip, pos, host, pause] = await Promise.all([
     listQueue(code),
     s.get(`rooms/${code}/now`, { type: "json" }),
@@ -114,6 +123,7 @@ async function roomState(room: RoomMeta) {
   ]);
   return {
     code,
+    v,
     now: now ?? null,
     pos: pos ?? null,
     hostSince: host.since,
@@ -166,22 +176,30 @@ export default async (req: Request, _context: Context) => {
     if (!room) return fail("Room not found or expired. Ask the host for the new code.", 410);
 
     const action = parts[2];
-    const host = await getHost(room);
-    const isHost = req.headers.get("x-host-token") === host.token;
+    const isHost = async () => req.headers.get("x-host-token") === (await getHost(room)).token;
 
-    // GET /api/rooms/:code
-    if (!action && method === "GET") return json(await roomState(room));
+    // GET /api/rooms/:code[?v=<version the caller already has>]
+    // When nothing changed, answer with two small reads instead of the whole room.
+    if (!action && method === "GET") {
+      const have = url.searchParams.get("v");
+      if (have && have === (await getVersion(code))) {
+        const pos = await s.get(`rooms/${code}/pos`, { type: "json" });
+        return json({ unchanged: true, v: have, pos: pos ?? null, serverNow: Date.now() });
+      }
+      return json(await roomState(room));
+    }
 
     // POST /api/rooms/:code/takeover  (this device becomes the TV; the old TV stops)
     if (action === "takeover" && method === "POST") {
       const next: HostInfo = { token: newToken(), since: Date.now() };
       await s.setJSON(`rooms/${code}/host`, next);
+      await bump(code);
       return json({ code, hostToken: next.token, hostSince: next.since });
     }
 
     // POST /api/rooms/:code/progress { id, t }  (host only: remember playback position)
     if (action === "progress" && method === "POST") {
-      if (!isHost) return fail("This screen is no longer the TV.", 403);
+      if (!(await isHost())) return fail("This screen is no longer the TV.", 403);
       const body = await readBody(req);
       const id = String(body.id ?? "");
       const t = Number(body.t);
@@ -211,6 +229,7 @@ export default async (req: Request, _context: Context) => {
         addedAt: now,
       };
       await s.setJSON(`rooms/${code}/q/${item.id}`, item);
+      await bump(code);
       return json(item, 201);
     }
 
@@ -222,6 +241,7 @@ export default async (req: Request, _context: Context) => {
       const key = `rooms/${code}/q/${id}`;
       if (!parts[4] && method === "DELETE") {
         await s.delete(key);
+        await bump(code);
         return json({ ok: true });
       }
       if (parts[4] === "bump" && method === "POST") {
@@ -233,6 +253,7 @@ export default async (req: Request, _context: Context) => {
         // Only write if the host hasn't started playing (deleted) it meanwhile.
         const { modified } = await s.setJSON(key, item, { onlyIfMatch: entry.etag });
         if (!modified) return fail("That song just changed, try again.", 409);
+        await bump(code);
         return json(item);
       }
     }
@@ -242,18 +263,20 @@ export default async (req: Request, _context: Context) => {
       const body = await readBody(req);
       const paused = body.paused === true;
       await s.setJSON(`rooms/${code}/pause`, { paused, at: Date.now() });
+      await bump(code);
       return json({ ok: true, paused });
     }
 
     // POST /api/rooms/:code/skip   (any remote can ask the TV to skip)
     if (action === "skip" && method === "POST") {
       await s.setJSON(`rooms/${code}/skip`, { at: Date.now() });
+      await bump(code);
       return json({ ok: true });
     }
 
     // POST /api/rooms/:code/next   (host only: start the next song)
     if (action === "next" && method === "POST") {
-      if (!isHost) return fail("This screen is no longer the TV.", 403);
+      if (!(await isHost())) return fail("This screen is no longer the TV.", 403);
       const queue = await listQueue(code);
       const next = queue[0] ?? null;
       if (next) {
@@ -263,6 +286,7 @@ export default async (req: Request, _context: Context) => {
         await s.delete(`rooms/${code}/now`);
       }
       await Promise.all([s.delete(`rooms/${code}/pos`), s.delete(`rooms/${code}/pause`)]);
+      await bump(code);
       return json(await roomState(room));
     }
 

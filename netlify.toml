@@ -2,3 +2,8 @@
   publish = "public"
   functions = "netlify/functions"
   command = "npm install"
+
+[[headers]]
+  for = "/fonts/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

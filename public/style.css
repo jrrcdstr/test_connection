@@ -1,123 +1,199 @@
+/* Kanta Tayo: the blue idle screen of a videoke machine.
+   Blue ground, white lettering, yellow for whatever is "being sung" right now,
+   red only for stopping things. */
+
+@font-face {
+  font-family: "Baloo 2";
+  src: url("/fonts/baloo2.woff2") format("woff2");
+  font-weight: 400 800;
+  font-display: swap;
+}
+
 :root {
-  --bg: #120a1f;
-  --bg-2: #1d1230;
-  --card: #261840;
-  --line: #3b2a5c;
-  --text: #f6f1ff;
-  --muted: #b6a7d4;
-  --pink: #ff3d8b;
-  --yellow: #ffd23f;
-  --cyan: #2de2e6;
-  --danger: #ff5c5c;
-  --radius: 14px;
+  --blue: #1535a8;      /* the screen */
+  --deep: #0b1f6b;      /* outlines, insets, shadows */
+  --night: #06123f;     /* overlays */
+  --white: #ffffff;
+  --sky: #b4c4ff;       /* quiet text on blue */
+  --yellow: #ffd60a;    /* the sung part */
+  --red: #ef2b41;       /* stop, remove */
+  --display: "Baloo 2", "Arial Rounded MT Bold", "Trebuchet MS", sans-serif;
+  --body: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   color-scheme: dark;
 }
 
-* { box-sizing: border-box; }
+*, *::before, *::after { box-sizing: border-box; }
 
-html, body {
+html { -webkit-text-size-adjust: 100%; }
+
+body {
   margin: 0;
-  background: radial-gradient(ellipse at top, #2a1450 0%, var(--bg) 60%) fixed;
-  background-color: var(--bg);
-  color: var(--text);
-  font-family: "Poppins", system-ui, -apple-system, "Segoe UI", sans-serif;
-  min-height: 100%;
+  min-height: 100vh;
+  background: var(--blue);
+  color: var(--white);
+  font: 16px/1.5 var(--body);
+  /* room to scroll content above Netlify's floating badge */
+  padding-bottom: 96px;
 }
 
-/* Leave room so page content can scroll above Netlify's floating badge. */
-body { padding-bottom: 96px; }
+h1, h2, h3, p { margin: 0; }
+a { color: var(--yellow); }
+.hidden { display: none !important; }
+.quiet { color: var(--sky); }
+.small { font-size: 14px; }
 
-a { color: var(--cyan); }
+:focus-visible { outline: 3px solid var(--yellow); outline-offset: 2px; }
 
-.brand {
+/* ---------- Lyric lettering ----------
+   Outlined like on-screen lyrics. The outline sits on a copy of the text
+   (data-text) behind the real one, so the fill can be a moving gradient. */
+.lyric {
+  position: relative;
+  z-index: 0;
+  display: inline-block;
+  font-family: var(--display);
   font-weight: 800;
-  letter-spacing: -0.02em;
-  background: linear-gradient(90deg, var(--yellow), var(--pink));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  color: var(--white);
+}
+.lyric::before {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  color: var(--deep);
+  -webkit-text-stroke: 0.16em var(--deep);
+  paint-order: stroke;
+}
+/* The "being sung" fill: a yellow copy wiped in from the left. */
+.lyric.sing::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  color: var(--yellow);
+  clip-path: inset(-0.2em 100% -0.2em 0);
+  animation: sing 2.4s 0.4s linear forwards;
+}
+.lyric.sing.loop::after { animation: sing 6s linear infinite; }
+.lyric.sung { color: var(--yellow); }
+@keyframes sing { to { clip-path: inset(-0.2em 0 -0.2em 0); } }
+@media (prefers-reduced-motion: reduce) {
+  .lyric.sing::after, .lyric.sing.loop::after { animation: none; clip-path: none; }
 }
 
+/* ---------- Controls ---------- */
 button, .btn {
-  font: inherit;
-  font-weight: 600;
+  font: 700 16px/1.2 var(--body);
+  min-height: 48px;
+  padding: 12px 18px;
   border: 0;
-  border-radius: 999px;
-  padding: 12px 20px;
+  border-radius: 10px;
+  background: var(--yellow);
+  color: var(--deep);
+  box-shadow: 0 3px 0 var(--deep);
   cursor: pointer;
-  background: var(--pink);
-  color: #fff;
   text-decoration: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  transition: transform .08s ease, filter .15s ease;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
-button:hover, .btn:hover { filter: brightness(1.1); }
-button:active, .btn:active { transform: scale(.97); }
-button:disabled { opacity: .5; cursor: not-allowed; }
-.btn-ghost { background: transparent; border: 1px solid var(--line); color: var(--text); }
-.btn-yellow { background: var(--yellow); color: #1a1030; }
-.btn-small { padding: 7px 12px; font-size: 14px; }
-.btn-icon { padding: 8px 11px; background: var(--bg-2); border: 1px solid var(--line); color: var(--text); }
+button:active, .btn:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--deep); }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-plain { background: var(--deep); color: var(--white); box-shadow: none; }
+.btn-plain:active { box-shadow: none; }
+.btn-armed, .btn-plain.btn-armed { background: var(--red); color: var(--white); }
+.btn-wide { width: 100%; }
+.icon { width: 18px; height: 18px; flex: none; fill: currentColor; }
 
-input {
-  font: inherit;
+input[type="text"], input[type="url"], input:not([type]) {
+  font: 16px/1.3 var(--body);
   width: 100%;
-  padding: 13px 16px;
-  border-radius: 12px;
-  border: 1px solid var(--line);
-  background: var(--bg-2);
-  color: var(--text);
-  outline: none;
+  min-height: 48px;
+  padding: 12px 14px;
+  border: 2px solid var(--deep);
+  border-radius: 10px;
+  background: var(--white);
+  color: var(--night);
 }
-input:focus { border-color: var(--pink); }
+input::placeholder { color: #5b6a9e; }
+input:focus-visible { outline-offset: 0; }
+label { display: block; font-weight: 700; font-size: 14px; margin-bottom: 6px; }
 
-.card {
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 18px;
+.codefield {
+  font-family: var(--display) !important;
+  font-weight: 800 !important;
+  font-size: 28px !important;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.25em;
+  padding-left: 0.25em !important;
 }
 
-.muted { color: var(--muted); }
-.small { font-size: 14px; }
+/* ---------- Song list ----------
+   Numbers are the singing order, so they earn their place. */
+.queue { list-style: none; margin: 0; padding: 0; }
+.queue li {
+  display: grid;
+  grid-template-columns: 1.6em 72px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 0;
+  border-top: 2px solid var(--deep);
+}
+.queue li:first-child { border-top: 0; }
+.queue .num { font: 800 22px/1 var(--display); color: var(--sky); text-align: center; }
+.queue li:first-child .num { color: var(--yellow); }
+.queue img { width: 72px; height: 40px; object-fit: cover; border-radius: 6px; background: var(--deep); display: block; }
+.queue .singer { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.queue .title { font-size: 14px; color: var(--sky); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.queue .actions { display: flex; gap: 6px; }
+.queue .actions button { min-height: 44px; width: 44px; padding: 0; }
+.queue .empty { display: block; border: 0; padding: 4px 0; color: var(--sky); }
 
+/* ---------- Messages ---------- */
 .toast {
   position: fixed;
   left: 50%;
-  bottom: 24px;
+  bottom: 84px;
   transform: translateX(-50%);
-  background: #000c;
-  border: 1px solid var(--line);
-  padding: 12px 18px;
-  border-radius: 12px;
   z-index: 100;
   max-width: calc(100% - 32px);
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: var(--night);
+  color: var(--white);
+  font-weight: 600;
   text-align: center;
   opacity: 0;
   pointer-events: none;
-  transition: opacity .2s;
+  transition: opacity 0.15s;
 }
 .toast.show { opacity: 1; }
 
-/* ---------- Queue list (shared) ---------- */
-.queue { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.queue li {
-  display: grid;
-  grid-template-columns: 28px 64px 1fr auto;
-  gap: 10px;
-  align-items: center;
-  background: var(--bg-2);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 8px;
+.offline {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  padding: 10px 16px;
+  background: var(--red);
+  color: var(--white);
+  font-weight: 700;
+  text-align: center;
 }
-.queue .num { color: var(--yellow); font-weight: 800; text-align: center; }
-.queue img { width: 64px; height: 36px; object-fit: cover; border-radius: 6px; }
-.queue .info { min-width: 0; }
-.queue .title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
-.queue .singer { color: var(--cyan); font-size: 13px; font-weight: 600; }
-.queue .actions { display: flex; gap: 6px; }
-.empty { color: var(--muted); text-align: center; padding: 18px 8px; border: 1px dashed var(--line); border-radius: 12px; }
+
+/* Full-screen notices on the TV (start, moved) */
+.cover {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  background: var(--blue);
+  overflow: auto;
+}
+.cover > div { width: 100%; max-width: 30rem; }

@@ -3,105 +3,104 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Kanta Tayo! Remote</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap" rel="stylesheet">
+  <title>Kanta Tayo remote</title>
+  <meta name="theme-color" content="#1535a8">
+  <link rel="preload" href="/fonts/baloo2.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/style.css">
   <style>
-    main { max-width: 560px; margin: 0 auto; padding: 16px; display: grid; gap: 14px; }
-    header { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-    header .brand { font-size: 24px; margin: 0; }
-    .roomtag { font-weight: 800; letter-spacing: .15em; color: var(--yellow); background: var(--card); border: 1px solid var(--line); padding: 6px 12px; border-radius: 999px; }
-    .now { display: grid; grid-template-columns: 96px 1fr; gap: 12px; align-items: center; }
-    .now img { width: 96px; height: 54px; object-fit: cover; border-radius: 8px; background: #000; }
-    .now .label { font-size: 12px; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); }
-    .now .who { font-weight: 800; color: var(--yellow); }
-    .now .song { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    form { display: grid; gap: 10px; }
-    .row { display: flex; gap: 8px; }
-    .row > * { flex: 1; }
-    h3 { margin: 0 0 10px; font-size: 16px; }
-    .hint { font-size: 13px; color: var(--muted); margin: 0; }
-    .joinbox { text-align: center; }
-    .joinbox input { text-transform: uppercase; letter-spacing: .3em; font-weight: 800; text-align: center; font-size: 22px; }
-    .hidden { display: none !important; }
-    .phonevid { position: relative; aspect-ratio: 16 / 9; background: #000; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--line); }
+    main { max-width: 34rem; margin: 0 auto; padding: 14px 16px 0; }
+    header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 18px; }
+    header a { font: 800 22px/1 var(--display); color: var(--white); text-decoration: none; }
+    .roomtag { font: 800 18px/1 var(--display); letter-spacing: 0.14em; color: var(--sky); }
+    section { padding: 22px 0; border-top: 2px solid var(--deep); }
+    section:first-of-type { border-top: 0; padding-top: 0; }
+    h2 { font: 800 22px/1.1 var(--display); margin-bottom: 10px; }
+
+    .phonevid { position: relative; aspect-ratio: 16 / 9; background: #000; border-radius: 6px; overflow: hidden; margin-bottom: 14px; box-shadow: 0 0 0 3px var(--deep); }
     .phonevid iframe, .phonevid > div { position: absolute; inset: 0; width: 100%; height: 100%; }
-    .phonevid .note { position: absolute; left: 8px; bottom: 8px; z-index: 2; background: #000b; font-size: 12px; padding: 3px 8px; border-radius: 999px; color: var(--muted); pointer-events: none; }
-    .watchrow { grid-column: 1 / -1; display: flex; justify-content: flex-end; }
+
+    .now { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 14px; align-items: center; }
+    .now img { width: 112px; height: 63px; object-fit: cover; border-radius: 6px; background: var(--deep); display: block; }
+    .now .who { font-size: 30px; max-width: 100%; }
+    .now .song { color: var(--sky); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 4px; }
+    .nowctl { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+    .nowctl .span { grid-column: 1 / -1; }
+
+    .add { display: grid; gap: 12px; }
+    .field { position: relative; }
+    .field input { padding-right: 84px; }
+    .field .paste { position: absolute; right: 5px; top: 5px; min-height: 38px; padding: 6px 12px; font-size: 14px; }
+    .hint { color: var(--sky); font-size: 14px; }
+
+    .joinbox { padding-top: 12vh; }
+    .joinbox form { display: grid; gap: 12px; max-width: 20rem; }
+
+    details summary { cursor: pointer; font-weight: 700; padding: 4px 0; }
+    details p { color: var(--sky); margin: 8px 0 14px; }
   </style>
 </head>
 <body>
   <main>
     <header>
-      <a href="/" style="text-decoration:none"><h1 class="brand">Kanta Tayo! 🎤</h1></a>
+      <a href="/">Kanta tayo!</a>
       <span class="roomtag hidden" id="roomTag"></span>
     </header>
 
-    <section class="card joinbox hidden" id="joinBox">
-      <h3>Enter the code on the TV</h3>
+    <div class="joinbox hidden" id="joinBox">
       <form id="joinForm">
-        <input id="codeInput" maxlength="4" placeholder="ABCD" autocomplete="off" aria-label="Room code" required>
-        <button type="submit">Join party</button>
+        <label for="codeInput">Enter the code shown on the TV</label>
+        <input class="codefield" id="codeInput" maxlength="4" placeholder="ABCD" autocomplete="off" autocapitalize="characters" spellcheck="false" required>
+        <button type="submit">Join the party</button>
       </form>
-    </section>
+    </div>
 
-    <div id="app" class="hidden" style="display:grid;gap:14px">
-      <div class="phonevid hidden" id="phoneVid">
-        <div id="ytPhone"></div>
-        <span class="note">🔇 Muted · follows the TV</span>
-      </div>
-
-      <section class="card now" id="nowCard">
-        <img id="nowImg" alt="">
-        <div style="min-width:0">
-          <div class="label">Now singing</div>
-          <div class="who" id="nowWho">Nobody yet</div>
-          <div class="song" id="nowSong"></div>
+    <div id="app" class="hidden">
+      <section aria-label="Now singing">
+        <div class="phonevid hidden" id="phoneVid"><div id="ytPhone"></div></div>
+        <div class="now">
+          <img id="nowImg" alt="" width="112" height="63">
+          <div>
+            <div class="lyric sung who" id="nowWho" data-text=""></div>
+            <div class="song" id="nowSong">No one is singing yet</div>
+          </div>
         </div>
-        <div class="watchrow">
-          <button class="btn-ghost btn-small" id="watchBtn">👀 Watch video on my phone (muted)</button>
+        <div class="nowctl">
+          <button class="btn-plain" id="pauseBtn" disabled>Pause</button>
+          <button class="btn-plain" id="skipBtn" disabled>Skip</button>
+          <button class="btn-plain span" id="watchBtn" aria-pressed="false">Show the video here, muted</button>
         </div>
       </section>
 
-      <section class="card">
-        <h3>➕ Add a song</h3>
-        <form id="addForm">
-          <input id="singer" placeholder="Your name" maxlength="30" autocomplete="name" required>
-          <input id="url" placeholder="Paste YouTube karaoke link" autocomplete="off" required inputmode="url">
-          <div class="row">
-            <button type="button" class="btn-ghost" id="pasteBtn">📋 Paste</button>
-            <button type="submit" id="addBtn">Add to queue</button>
+      <section>
+        <h2>Pick your song</h2>
+        <form class="add" id="addForm">
+          <div>
+            <label for="singer">Your name</label>
+            <input id="singer" maxlength="30" autocomplete="given-name" required>
           </div>
+          <div>
+            <label for="url">YouTube link, or a song to look for</label>
+            <div class="field">
+              <input id="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="My Way karaoke" required>
+              <button type="button" class="btn-plain paste" id="pasteBtn">Paste</button>
+            </div>
+          </div>
+          <button type="submit" id="addBtn">Find on YouTube</button>
+          <p class="hint" id="addHint">Type a song to find it on YouTube. There, tap Share, then Copy link, and paste the link here.</p>
         </form>
       </section>
 
-      <section class="card">
-        <h3>🔎 Find a song</h3>
-        <form id="findForm">
-          <div class="row">
-            <input id="q" placeholder="Song title or artist" autocomplete="off">
-            <button type="submit" class="btn-yellow" style="flex:0 0 auto">Search</button>
-          </div>
-          <p class="hint">Opens YouTube with “karaoke” added. Tap <b>Share → Copy link</b>, come back here and tap <b>Paste</b>.</p>
-        </form>
-      </section>
-
-      <section class="card">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-          <h3 style="margin:0">🎶 Queue <span class="muted small" id="count"></span></h3>
-          <div style="display:flex;gap:6px">
-            <button class="btn-ghost btn-small" id="pauseBtn">⏸ Pause</button>
-            <button class="btn-ghost btn-small" id="skipBtn">⏭ Skip</button>
-          </div>
-        </div>
+      <section>
+        <h2>Up next <span class="quiet" id="count"></span></h2>
         <ul class="queue" id="queue"></ul>
       </section>
 
-      <section class="card">
-        <h3>📺 TV lost internet?</h3>
-        <p class="hint" style="margin-bottom:12px">Play the songs on this device instead. The queue and the current song continue here, and the old TV stops.</p>
-        <button class="btn-ghost" id="takeoverBtn" style="width:100%">Make this device the TV</button>
+      <section>
+        <details>
+          <summary>TV lost its internet?</summary>
+          <p>Play the songs on this phone instead. The current song and the queue continue here, and the TV stops.</p>
+          <button class="btn-plain btn-wide" id="takeoverBtn">Play on this phone</button>
+        </details>
       </section>
     </div>
   </main>

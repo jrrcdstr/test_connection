@@ -1,4 +1,4 @@
-import { api, store, toast, thumb, renderQueue } from "/common.js";
+import { api, fetchRoom, store, toast, thumb, renderQueue, setLyric, setOffline, confirmTap } from "/common.js";
 
 const $ = (id) => document.getElementById(id);
 const POLL_MS = 3000;
@@ -27,7 +27,8 @@ const watch = {
     this.on = true;
     store("watch", "1");
     $("phoneVid").classList.remove("hidden");
-    $("watchBtn").textContent = "🙈 Hide video";
+    $("watchBtn").textContent = "Hide the video";
+    $("watchBtn").setAttribute("aria-pressed", "true");
     await this.loadApi();
     if (!this.player) {
       this.player = new YT.Player("ytPhone", {
@@ -44,7 +45,8 @@ const watch = {
     this.on = false;
     store("watch", null);
     $("phoneVid").classList.add("hidden");
-    $("watchBtn").textContent = "👀 Watch video on my phone (muted)";
+    $("watchBtn").textContent = "Show the video here, muted";
+    $("watchBtn").setAttribute("aria-pressed", "false");
     if (this.ready) this.player.stopVideo();
     this.videoId = null;
   },
@@ -89,11 +91,16 @@ const watch = {
 let lastState = null;
 let code = new URLSearchParams(location.search).get("room")?.toUpperCase() || "";
 let pollTimer = null;
+let failures = 0;
+
+const inApp = () => !$("app").classList.contains("hidden");
+const looksLikeLink = (text) => /youtu\.?be|^[A-Za-z0-9_-]{11}$/.test(text.trim());
 
 function showJoin(message) {
   $("app").classList.add("hidden");
   $("roomTag").classList.add("hidden");
   $("joinBox").classList.remove("hidden");
+  setOffline(false);
   if (message) toast(message, 4000);
 }
 
@@ -106,45 +113,49 @@ function showApp() {
 
 function render(state) {
   const item = state.now?.item;
-  $("nowWho").textContent = item ? `🎤 ${item.singer}` : "Nobody yet";
-  $("nowSong").textContent = item ? item.title : "Add a song to start!";
+  isPaused = Boolean(state.paused);
+  setLyric($("nowWho"), item ? item.singer : "");
+  $("nowSong").textContent = item ? (isPaused ? `Paused. ${item.title}` : item.title) : "No one is singing yet";
   if (item) $("nowImg").src = thumb(item.videoId);
   else $("nowImg").removeAttribute("src");
-  renderQueue($("queue"), state.queue, { actions: true });
-  isPaused = Boolean(state.paused);
-  $("pauseBtn").textContent = isPaused ? "▶ Resume" : "⏸ Pause";
+  $("pauseBtn").textContent = isPaused ? "Resume" : "Pause";
   $("pauseBtn").disabled = !item;
-  $("nowWho").textContent = item ? `${isPaused ? "⏸ " : "🎤 "}${item.singer}` : "Nobody yet";
+  if (!$("skipBtn").classList.contains("btn-armed")) $("skipBtn").disabled = !item;
+  renderQueue($("queue"), state.queue, { actions: true, empty: "No songs waiting. Pick one above." });
   $("count").textContent = state.queue.length ? `(${state.queue.length})` : "";
 }
 
 async function refresh() {
   try {
-    const state = await api(`rooms/${code}`);
-    state.receivedAt = Date.now();
+    const state = await fetchRoom(code, lastState);
     lastState = state;
-    render(state);
+    failures = 0;
+    setOffline(false);
+    if (state.changed) render(state);
     watch.sync(state);
     return true;
   } catch (err) {
     if (err.status === 410 || err.status === 400) {
       clearTimeout(pollTimer);
+      lastState = null;
       showJoin(err.message);
       return false;
     }
-    return true; // transient error, keep polling
+    if (++failures >= 2 && inApp()) setOffline(true);
+    return true; // keep trying
   }
 }
 
 async function loop() {
-  const ok = await refresh();
-  if (ok) pollTimer = setTimeout(loop, POLL_MS);
+  clearTimeout(pollTimer);
+  if (document.hidden) return; // resumes on visibilitychange
+  if (await refresh()) pollTimer = setTimeout(loop, POLL_MS);
 }
 
 async function join(newCode) {
   code = newCode.trim().toUpperCase();
   history.replaceState(null, "", `?room=${code}`);
-  clearTimeout(pollTimer);
+  lastState = null;
   if (await refresh()) {
     showApp();
     pollTimer = setTimeout(loop, POLL_MS);
@@ -159,43 +170,51 @@ $("joinForm").addEventListener("submit", (e) => {
 
 $("singer").value = store("singer") || "";
 
+// One field: a YouTube link gets added, anything else is searched on YouTube.
+function updateAddButton() {
+  $("addBtn").textContent = looksLikeLink($("url").value) ? "Add to queue" : "Find on YouTube";
+}
+$("url").addEventListener("input", updateAddButton);
+
 $("addForm").addEventListener("submit", async (e) => {
   e.preventDefault();
+  const text = $("url").value.trim();
+  const singer = $("singer").value.trim();
+  store("singer", singer);
+
+  if (!looksLikeLink(text)) {
+    const query = /karaoke|videoke/i.test(text) ? text : `${text} karaoke`;
+    window.open(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`, "_blank", "noopener");
+    $("url").value = "";
+    $("addHint").textContent = "In YouTube, tap Share, then Copy link. Come back and tap Paste.";
+    return;
+  }
+
   const btn = $("addBtn");
   btn.disabled = true;
   btn.textContent = "Adding…";
   try {
-    const singer = $("singer").value.trim();
-    store("singer", singer);
-    const item = await api(`rooms/${code}/queue`, { method: "POST", body: { url: $("url").value, singer } });
+    const item = await api(`rooms/${code}/queue`, { method: "POST", body: { url: text, singer } });
     $("url").value = "";
-    toast(`✅ Added: ${item.title}`);
+    toast(`Added to queue: ${item.title}`);
     refresh();
   } catch (err) {
     toast(err.message, 4000);
   } finally {
     btn.disabled = false;
-    btn.textContent = "Add to queue";
+    updateAddButton();
   }
 });
 
 $("pasteBtn").addEventListener("click", async () => {
   try {
     const text = await navigator.clipboard.readText();
-    if (text) $("url").value = text.trim();
-    else toast("Clipboard is empty. Copy a YouTube link first.");
+    if (text) { $("url").value = text.trim(); updateAddButton(); }
+    else toast("Nothing copied yet. Copy a YouTube link first.");
   } catch {
-    toast("Can't read clipboard. Long-press the box and choose Paste.");
+    toast("Press and hold the box, then choose Paste.");
     $("url").focus();
   }
-});
-
-$("findForm").addEventListener("submit", (e) => {
-  e.preventDefault();
-  const q = $("q").value.trim();
-  if (!q) return;
-  const query = /karaoke|videoke/i.test(q) ? q : `${q} karaoke`;
-  window.open(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`, "_blank", "noopener");
 });
 
 $("queue").addEventListener("click", async (e) => {
@@ -209,7 +228,7 @@ $("queue").addEventListener("click", async (e) => {
       toast("Removed from queue");
     } else {
       await api(`rooms/${code}/queue/${id}/bump`, { method: "POST" });
-      toast("⬆ Moved to next");
+      toast("Moved to next");
     }
     refresh();
   } catch (err) {
@@ -229,31 +248,25 @@ $("pauseBtn").addEventListener("click", async () => {
   btn.disabled = true;
   try {
     await api(`rooms/${code}/pause`, { method: "POST", body: { paused: want } });
-    isPaused = want;
-    btn.textContent = want ? "▶ Resume" : "⏸ Pause";
-    toast(want ? "⏸ Pause sent to the TV" : "▶ Resume sent to the TV");
-    refresh();
+    toast(want ? "Paused" : "Resumed");
+    await refresh();
   } catch (err) {
     toast(err.message);
   } finally {
-    btn.disabled = false;
+    btn.disabled = !lastState?.now?.item;
   }
 });
 
-$("skipBtn").addEventListener("click", async () => {
-  if (!confirm("Skip the song that's playing now?")) return;
+confirmTap($("skipBtn"), "Tap again to skip", async () => {
   try {
     await api(`rooms/${code}/skip`, { method: "POST" });
-    toast("⏭ Skip sent to the TV");
+    toast("Skipped");
   } catch (err) {
     toast(err.message);
   }
 });
 
-$("takeoverBtn").addEventListener("click", async () => {
-  if (!confirm("Make this device the TV? Songs will play here and the current TV will stop.")) return;
-  const btn = $("takeoverBtn");
-  btn.disabled = true;
+confirmTap($("takeoverBtn"), "Tap again. The TV will stop.", async () => {
   try {
     const room = await api(`rooms/${code}/takeover`, { method: "POST" });
     store(`host:${room.code}`, room.hostToken);
@@ -261,14 +274,14 @@ $("takeoverBtn").addEventListener("click", async () => {
     location.href = `/host.html?room=${room.code}`;
   } catch (err) {
     toast(err.message);
-    btn.disabled = false;
   }
 });
 
-// Refresh right away when the phone comes back from the YouTube app.
+// Stop polling while the phone is locked or in another app; catch up on return.
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible" && code && !$("app").classList.contains("hidden")) refresh();
+  if (!document.hidden && code && inApp()) loop();
 });
+window.addEventListener("online", () => { if (code && inApp()) loop(); });
 
-if (code) join(code).then(() => { if (store("watch") === "1" && !$("app").classList.contains("hidden")) watch.start(); });
+if (code) join(code).then(() => { if (store("watch") === "1" && inApp()) watch.start(); });
 else showJoin();
